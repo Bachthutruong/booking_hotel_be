@@ -1,0 +1,108 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+const mongoose_1 = __importStar(require("mongoose"));
+const roomSchema = new mongoose_1.Schema({
+    hotel: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Hotel',
+        required: [true, 'Hotel is required'],
+    },
+    name: {
+        type: String,
+        required: [true, 'Room name is required'],
+        trim: true,
+    },
+    description: {
+        type: String,
+        default: '',
+    },
+    type: {
+        type: String,
+        enum: ['standard', 'deluxe', 'suite', 'villa'],
+        default: 'standard',
+    },
+    price: {
+        type: Number,
+        required: [true, 'Price is required'],
+        min: 0,
+    },
+    capacity: {
+        adults: {
+            type: Number,
+            default: 2,
+            min: 1,
+        },
+        children: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+    },
+    size: {
+        type: Number,
+        default: 25,
+    },
+    bedType: {
+        type: String,
+        default: '1 giường đôi',
+    },
+    images: {
+        type: [String],
+        default: [],
+    },
+    amenities: {
+        type: [String],
+        default: [],
+    },
+    quantity: {
+        type: Number,
+        default: 1,
+        min: 0,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+}, {
+    timestamps: true,
+});
+// Index
+roomSchema.index({ hotel: 1 });
+roomSchema.index({ price: 1 });
+roomSchema.index({ type: 1 });
+const Room = mongoose_1.default.model('Room', roomSchema);
+exports.default = Room;
+//# sourceMappingURL=Room.js.map
