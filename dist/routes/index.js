@@ -14,6 +14,9 @@ const dashboardRoutes_1 = __importDefault(require("./dashboardRoutes"));
 const serviceRoutes_1 = __importDefault(require("./serviceRoutes"));
 const systemConfigRoutes_1 = __importDefault(require("./systemConfigRoutes"));
 const uploadRoutes_1 = __importDefault(require("./uploadRoutes"));
+const walletRoutes_1 = __importDefault(require("./walletRoutes"));
+const roomCategoryRoutes_1 = __importDefault(require("./roomCategoryRoutes"));
+const promotionRoutes_1 = __importDefault(require("./promotionRoutes"));
 const router = (0, express_1.Router)();
 router.use('/auth', authRoutes_1.default);
 router.use('/users', userRoutes_1.default);
@@ -25,5 +28,8 @@ router.use('/dashboard', dashboardRoutes_1.default);
 router.use('/services', serviceRoutes_1.default);
 router.use('/config', systemConfigRoutes_1.default);
 router.use('/upload', uploadRoutes_1.default);
+router.use('/wallet', walletRoutes_1.default);
+router.use('/categories', roomCategoryRoutes_1.default);
+router.use('/promotions', promotionRoutes_1.default);
 exports.default = router;
 //# sourceMappingURL=index.js.map

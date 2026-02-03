@@ -201,17 +201,17 @@ export const createPromotion = async (req: AuthRequest, res: Response<ApiRespons
     }
 
     const promotion = await PromotionConfig.create({
-      hotel: hotel || null,
-      room: room || null,
+      hotel: hotel || undefined,
+      room: room || undefined,
       name,
       description,
       depositAmount,
       bonusAmount: bonusAmount || 0,
-      bonusPercent: bonusPercent || null,
-      minDeposit: minDeposit || null,
-      maxBonus: maxBonus || null,
-      startDate: startDate ? new Date(startDate) : null,
-      endDate: endDate ? new Date(endDate) : null,
+      bonusPercent: bonusPercent || undefined,
+      minDeposit: minDeposit || undefined,
+      maxBonus: maxBonus || undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
     });
 
     res.status(201).json({

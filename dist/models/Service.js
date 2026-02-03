@@ -52,6 +52,9 @@ const serviceSchema = new mongoose_1.Schema({
     icon: {
         type: String,
     },
+    qrCode: {
+        type: String,
+    },
     isActive: {
         type: Boolean,
         default: true,

@@ -4,7 +4,11 @@ const express_1 = require("express");
 const authController_1 = require("../controllers/authController");
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
+// Registration flow
 router.post('/register', authController_1.register);
+router.post('/verify-email', authController_1.verifyEmail);
+router.post('/resend-code', authController_1.resendVerificationCode);
+// Authentication
 router.post('/login', authController_1.login);
 router.post('/logout', authController_1.logout);
 router.get('/me', auth_1.protect, authController_1.getMe);

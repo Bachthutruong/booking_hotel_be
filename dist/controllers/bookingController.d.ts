@@ -8,4 +8,10 @@ export declare const uploadPaymentProof: (req: AuthRequest, res: Response, next:
 export declare const approveBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const cancelBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const updateBookingStatus: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const checkInBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const addServiceToBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const getBookingBill: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const checkoutBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const payWithWallet: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const getInvoice: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 //# sourceMappingURL=bookingController.d.ts.map

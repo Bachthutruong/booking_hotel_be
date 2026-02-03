@@ -58,6 +58,12 @@ const bookingSchema = new mongoose_1.Schema({
         type: Date,
         required: [true, 'Check-out date is required'],
     },
+    actualCheckIn: {
+        type: Date,
+    },
+    actualCheckOut: {
+        type: Date,
+    },
     guests: {
         adults: {
             type: Number,
@@ -70,9 +76,38 @@ const bookingSchema = new mongoose_1.Schema({
             min: 0,
         },
     },
+    roomPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    servicePrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     totalPrice: {
         type: Number,
         required: [true, 'Total price is required'],
+        min: 0,
+    },
+    estimatedPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    finalPrice: {
+        type: Number,
+        min: 0,
+    },
+    paidFromWallet: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    paidFromBonus: {
+        type: Number,
+        default: 0,
         min: 0,
     },
     services: [
@@ -104,6 +139,21 @@ const bookingSchema = new mongoose_1.Schema({
         enum: ['pending', 'paid', 'refunded'],
         default: 'pending',
     },
+    paymentMethod: {
+        type: String,
+        enum: ['bank_transfer', 'wallet', 'cash'],
+        default: 'bank_transfer',
+    },
+    paymentOption: {
+        type: String,
+        enum: ['use_bonus', 'use_main_only'],
+    },
+    invoiceNumber: {
+        type: String,
+    },
+    checkoutNote: {
+        type: String,
+    },
     specialRequests: {
         type: String,
         default: '',
@@ -126,11 +176,11 @@ const bookingSchema = new mongoose_1.Schema({
     timestamps: true,
 });
 // Index
-bookingSchema.index({ user: 1 });
-bookingSchema.index({ hotel: 1 });
-bookingSchema.index({ room: 1 });
+bookingSchema.index({ user: 1, createdAt: -1 });
+bookingSchema.index({ hotel: 1, checkIn: 1, checkOut: 1 });
+bookingSchema.index({ room: 1, checkIn: 1, checkOut: 1 });
 bookingSchema.index({ status: 1 });
-bookingSchema.index({ checkIn: 1, checkOut: 1 });
+bookingSchema.index({ createdAt: -1 });
 const Booking = mongoose_1.default.model('Booking', bookingSchema);
 exports.default = Booking;
 //# sourceMappingURL=Booking.js.map

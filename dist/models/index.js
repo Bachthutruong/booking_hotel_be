@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SystemConfig = exports.Service = exports.Review = exports.Booking = exports.Room = exports.Hotel = exports.User = void 0;
+exports.PromotionConfig = exports.RoomCategory = exports.WithdrawalRequest = exports.DepositRequest = exports.WalletTransaction = exports.SystemConfig = exports.Service = exports.Review = exports.Booking = exports.Room = exports.Hotel = exports.User = void 0;
 var User_1 = require("./User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return __importDefault(User_1).default; } });
 var Hotel_1 = require("./Hotel");
@@ -18,4 +18,14 @@ var Service_1 = require("./Service");
 Object.defineProperty(exports, "Service", { enumerable: true, get: function () { return __importDefault(Service_1).default; } });
 var SystemConfig_1 = require("./SystemConfig");
 Object.defineProperty(exports, "SystemConfig", { enumerable: true, get: function () { return __importDefault(SystemConfig_1).default; } });
+var WalletTransaction_1 = require("./WalletTransaction");
+Object.defineProperty(exports, "WalletTransaction", { enumerable: true, get: function () { return __importDefault(WalletTransaction_1).default; } });
+var DepositRequest_1 = require("./DepositRequest");
+Object.defineProperty(exports, "DepositRequest", { enumerable: true, get: function () { return __importDefault(DepositRequest_1).default; } });
+var WithdrawalRequest_1 = require("./WithdrawalRequest");
+Object.defineProperty(exports, "WithdrawalRequest", { enumerable: true, get: function () { return __importDefault(WithdrawalRequest_1).default; } });
+var RoomCategory_1 = require("./RoomCategory");
+Object.defineProperty(exports, "RoomCategory", { enumerable: true, get: function () { return __importDefault(RoomCategory_1).default; } });
+var PromotionConfig_1 = require("./PromotionConfig");
+Object.defineProperty(exports, "PromotionConfig", { enumerable: true, get: function () { return __importDefault(PromotionConfig_1).default; } });
 //# sourceMappingURL=index.js.map

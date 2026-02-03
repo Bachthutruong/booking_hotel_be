@@ -27,7 +27,7 @@ const getRooms = async (req, res, next) => {
             query['capacity.adults'] = { $gte: parseInt(capacity) };
         }
         const [rooms, total] = await Promise.all([
-            models_1.Room.find(query).skip(skip).limit(limit).sort({ price: 1 }),
+            models_1.Room.find(query).populate('category').skip(skip).limit(limit).sort({ price: 1 }).lean(),
             models_1.Room.countDocuments(query),
         ]);
         res.status(200).json({
@@ -46,7 +46,7 @@ exports.getRooms = getRooms;
 // @access  Public
 const getRoom = async (req, res, next) => {
     try {
-        const room = await models_1.Room.findById(req.params.id).populate('hotel');
+        const room = await models_1.Room.findById(req.params.id).populate('hotel').lean();
         if (!room) {
             res.status(404).json({
                 success: false,
@@ -188,7 +188,7 @@ const checkAvailability = async (req, res, next) => {
             });
             return;
         }
-        const room = await models_1.Room.findById(roomId);
+        const room = await models_1.Room.findById(roomId).lean();
         if (!room) {
             res.status(404).json({
                 success: false,
@@ -243,7 +243,7 @@ const getAvailableRooms = async (req, res, next) => {
         const checkInDate = new Date(checkIn);
         const checkOutDate = new Date(checkOut);
         // Get all active rooms for this hotel
-        const rooms = await models_1.Room.find({ hotel: hotelId, isActive: true });
+        const rooms = await models_1.Room.find({ hotel: hotelId, isActive: true }).lean();
         // For each room, check availability
         const availableRooms = await Promise.all(rooms.map(async (room) => {
             const bookedRooms = await models_1.Booking.countDocuments({
@@ -265,7 +265,7 @@ const getAvailableRooms = async (req, res, next) => {
                 }
             }
             return {
-                ...room.toObject(),
+                ...room,
                 availableQuantity,
                 isAvailable: availableQuantity > 0,
             };

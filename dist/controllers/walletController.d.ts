@@ -1,0 +1,16 @@
+import { Response } from 'express';
+import { AuthRequest, ApiResponse } from '../types';
+export declare const getWalletBalance: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getTransactionHistory: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const createDepositRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getMyDepositRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const createWithdrawalRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getMyWithdrawalRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const getAllDepositRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const processDepositRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getAllWithdrawalRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const processWithdrawalRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getAllUsersWallet: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const getUserWalletDetails: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getAllTransactions: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+//# sourceMappingURL=walletController.d.ts.map

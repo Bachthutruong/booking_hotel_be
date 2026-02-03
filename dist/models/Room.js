@@ -40,6 +40,10 @@ const roomSchema = new mongoose_1.Schema({
         ref: 'Hotel',
         required: [true, 'Hotel is required'],
     },
+    category: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'RoomCategory',
+    },
     name: {
         type: String,
         required: [true, 'Room name is required'],
@@ -100,9 +104,10 @@ const roomSchema = new mongoose_1.Schema({
     timestamps: true,
 });
 // Index
-roomSchema.index({ hotel: 1 });
+roomSchema.index({ hotel: 1, isActive: 1 });
 roomSchema.index({ price: 1 });
 roomSchema.index({ type: 1 });
+roomSchema.index({ createdAt: -1 });
 const Room = mongoose_1.default.model('Room', roomSchema);
 exports.default = Room;
 //# sourceMappingURL=Room.js.map

@@ -1,15 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.changePassword = exports.getMe = exports.logout = exports.login = exports.register = void 0;
+exports.changePassword = exports.getMe = exports.logout = exports.login = exports.resendVerificationCode = exports.verifyEmail = exports.register = void 0;
 const models_1 = require("../models");
 const jwt_1 = require("../utils/jwt");
-// @desc    Register user
+const emailService_1 = require("../utils/emailService");
+const pendingRegistrations = new Map();
+// Clean up expired registrations periodically
+setInterval(() => {
+    const now = new Date();
+    for (const [email, registration] of pendingRegistrations.entries()) {
+        if (registration.expiresAt < now) {
+            pendingRegistrations.delete(email);
+        }
+    }
+}, 60000); // Every minute
+// @desc    Register user - Step 1: Send verification code
 // @route   POST /api/auth/register
 // @access  Public
 const register = async (req, res, next) => {
     try {
         const { email, password, fullName, phone } = req.body;
-        // Check if user exists
+        // Validate required fields
+        if (!email || !password || !fullName) {
+            res.status(400).json({
+                success: false,
+                message: 'Vui lòng nhập đầy đủ thông tin',
+            });
+            return;
+        }
+        // Check if user already exists
         const existingUser = await models_1.User.findOne({ email });
         if (existingUser) {
             res.status(400).json({
@@ -18,20 +37,157 @@ const register = async (req, res, next) => {
             });
             return;
         }
-        // Create user
-        const user = await models_1.User.create({
+        // Generate verification code
+        const verificationCode = (0, emailService_1.generateVerificationCode)();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        // Store pending registration
+        pendingRegistrations.set(email, {
             email,
             password,
             fullName,
-            phone,
+            phone: phone || '',
+            verificationCode,
+            expiresAt,
         });
-        (0, jwt_1.sendTokenResponse)(user, 201, res);
+        // Send verification email
+        try {
+            await (0, emailService_1.sendVerificationEmail)(email, verificationCode, fullName);
+        }
+        catch (emailError) {
+            console.error('Email sending error:', emailError);
+            res.status(500).json({
+                success: false,
+                message: 'Không thể gửi email xác thực. Vui lòng thử lại.',
+            });
+            return;
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Mã xác thực đã được gửi đến email của bạn',
+            data: {
+                email,
+                expiresIn: 600, // 10 minutes in seconds
+            },
+        });
     }
     catch (error) {
         next(error);
     }
 };
 exports.register = register;
+// @desc    Verify email and complete registration
+// @route   POST /api/auth/verify-email
+// @access  Public
+const verifyEmail = async (req, res, next) => {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            res.status(400).json({
+                success: false,
+                message: 'Vui lòng nhập email và mã xác thực',
+            });
+            return;
+        }
+        // Check pending registration
+        const pendingRegistration = pendingRegistrations.get(email);
+        if (!pendingRegistration) {
+            res.status(400).json({
+                success: false,
+                message: 'Không tìm thấy yêu cầu đăng ký hoặc đã hết hạn. Vui lòng đăng ký lại.',
+            });
+            return;
+        }
+        // Check if expired
+        if (pendingRegistration.expiresAt < new Date()) {
+            pendingRegistrations.delete(email);
+            res.status(400).json({
+                success: false,
+                message: 'Mã xác thực đã hết hạn. Vui lòng đăng ký lại.',
+            });
+            return;
+        }
+        // Verify code
+        if (pendingRegistration.verificationCode !== code) {
+            res.status(400).json({
+                success: false,
+                message: 'Mã xác thực không đúng',
+            });
+            return;
+        }
+        // Create user
+        const user = await models_1.User.create({
+            email: pendingRegistration.email,
+            password: pendingRegistration.password,
+            fullName: pendingRegistration.fullName,
+            phone: pendingRegistration.phone,
+            isEmailVerified: true,
+        });
+        // Remove from pending
+        pendingRegistrations.delete(email);
+        // Send welcome email (non-blocking)
+        (0, emailService_1.sendWelcomeEmail)(email, pendingRegistration.fullName).catch(console.error);
+        (0, jwt_1.sendTokenResponse)(user, 201, res);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.verifyEmail = verifyEmail;
+// @desc    Resend verification code
+// @route   POST /api/auth/resend-code
+// @access  Public
+const resendVerificationCode = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            res.status(400).json({
+                success: false,
+                message: 'Vui lòng nhập email',
+            });
+            return;
+        }
+        // Check pending registration
+        const pendingRegistration = pendingRegistrations.get(email);
+        if (!pendingRegistration) {
+            res.status(400).json({
+                success: false,
+                message: 'Không tìm thấy yêu cầu đăng ký. Vui lòng đăng ký lại.',
+            });
+            return;
+        }
+        // Generate new code
+        const verificationCode = (0, emailService_1.generateVerificationCode)();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        // Update pending registration
+        pendingRegistration.verificationCode = verificationCode;
+        pendingRegistration.expiresAt = expiresAt;
+        pendingRegistrations.set(email, pendingRegistration);
+        // Send verification email
+        try {
+            await (0, emailService_1.sendVerificationEmail)(email, verificationCode, pendingRegistration.fullName);
+        }
+        catch (emailError) {
+            console.error('Email sending error:', emailError);
+            res.status(500).json({
+                success: false,
+                message: 'Không thể gửi email xác thực. Vui lòng thử lại.',
+            });
+            return;
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Mã xác thực mới đã được gửi đến email của bạn',
+            data: {
+                email,
+                expiresIn: 600,
+            },
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.resendVerificationCode = resendVerificationCode;
 // @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
@@ -52,6 +208,15 @@ const login = async (req, res, next) => {
             res.status(401).json({
                 success: false,
                 message: 'Email hoặc mật khẩu không đúng',
+            });
+            return;
+        }
+        // Check if email is verified
+        if (!user.isEmailVerified) {
+            res.status(401).json({
+                success: false,
+                message: 'Email chưa được xác thực. Vui lòng xác thực email trước khi đăng nhập.',
+                code: 'EMAIL_NOT_VERIFIED',
             });
             return;
         }

@@ -75,26 +75,46 @@ const userSchema = new mongoose_1.Schema({
         type: Boolean,
         default: true,
     },
+    isEmailVerified: {
+        type: Boolean,
+        default: false,
+    },
+    emailVerificationCode: {
+        type: String,
+        select: false,
+    },
+    emailVerificationExpires: {
+        type: Date,
+        select: false,
+    },
+    walletBalance: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    bonusBalance: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
 }, {
     timestamps: true,
 });
-// Hash password before saving
-userSchema.pre('save', async function (next) {
+// Hash password before saving - Fixed: Don't use next() with async functions in Mongoose 5+
+userSchema.pre('save', async function () {
     if (!this.isModified('password'))
-        return next();
-    try {
-        const salt = await bcryptjs_1.default.genSalt(10);
-        this.password = await bcryptjs_1.default.hash(this.password, salt);
-        next();
-    }
-    catch (error) {
-        next(error);
-    }
+        return;
+    const salt = await bcryptjs_1.default.genSalt(10);
+    this.password = await bcryptjs_1.default.hash(this.password, salt);
 });
 // Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return bcryptjs_1.default.compare(candidatePassword, this.password);
 };
+// Index
+userSchema.index({ role: 1 });
+userSchema.index({ fullName: 'text', email: 'text' });
+userSchema.index({ createdAt: -1 });
 const User = mongoose_1.default.model('User', userSchema);
 exports.default = User;
 //# sourceMappingURL=User.js.map

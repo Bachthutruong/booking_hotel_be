@@ -110,9 +110,9 @@ const hotelSchema = new mongoose_1.Schema({
 });
 // Index for search
 hotelSchema.index({ name: 'text', city: 'text', address: 'text' });
-hotelSchema.index({ city: 1 });
-hotelSchema.index({ rating: -1 });
-hotelSchema.index({ 'priceRange.min': 1 });
+hotelSchema.index({ city: 1, 'priceRange.min': 1, rating: -1 });
+hotelSchema.index({ createdAt: -1 });
+hotelSchema.index({ isActive: 1 });
 const Hotel = mongoose_1.default.model('Hotel', hotelSchema);
 exports.default = Hotel;
 //# sourceMappingURL=Hotel.js.map

@@ -51,7 +51,7 @@ const getHotels = async (req, res, next) => {
         if (sortBy === 'popular')
             sortOption = { totalReviews: -1 };
         const [hotels, total] = await Promise.all([
-            models_1.Hotel.find(query).skip(skip).limit(limit).sort(sortOption),
+            models_1.Hotel.find(query).skip(skip).limit(limit).sort(sortOption).lean(),
             models_1.Hotel.countDocuments(query),
         ]);
         res.status(200).json({
@@ -70,7 +70,7 @@ exports.getHotels = getHotels;
 // @access  Public
 const getHotel = async (req, res, next) => {
     try {
-        const hotel = await models_1.Hotel.findById(req.params.id);
+        const hotel = await models_1.Hotel.findById(req.params.id).lean();
         if (!hotel) {
             res.status(404).json({
                 success: false,
@@ -198,7 +198,8 @@ const getFeaturedHotels = async (req, res, next) => {
     try {
         const hotels = await models_1.Hotel.find({ isActive: true })
             .sort({ rating: -1, totalReviews: -1 })
-            .limit(8);
+            .limit(8)
+            .lean();
         res.status(200).json({
             success: true,
             data: hotels,
@@ -232,7 +233,7 @@ const getPopularCities = async (req, res, next) => {
 exports.getPopularCities = getPopularCities;
 // @desc    Update hotel price range (called when room prices change)
 const updateHotelPriceRange = async (hotelId) => {
-    const rooms = await models_1.Room.find({ hotel: hotelId, isActive: true });
+    const rooms = await models_1.Room.find({ hotel: hotelId, isActive: true }).lean();
     if (rooms.length > 0) {
         const prices = rooms.map((r) => r.price);
         const minPrice = Math.min(...prices);
