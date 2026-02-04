@@ -21,12 +21,29 @@ const getWalletBalance = async (req, res) => {
                 message: 'User not found',
             });
         }
+        // Calculate pending payments from active bookings (same logic as createWithdrawalRequest)
+        const pendingBookings = await Booking_1.default.find({
+            user: user._id,
+            status: { $in: ['confirmed', 'pending', 'pending_deposit', 'awaiting_approval'] },
+            paymentStatus: { $ne: 'paid' },
+        });
+        const pendingPayments = pendingBookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
+        // Calculate pending withdrawal amounts
+        const pendingWithdrawals = await WithdrawalRequest_1.default.aggregate([
+            { $match: { user: user._id, status: 'pending' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
+        ]);
+        const pendingWithdrawalAmount = pendingWithdrawals[0]?.total || 0;
+        const availableBalance = user.walletBalance - pendingPayments - pendingWithdrawalAmount;
         res.json({
             success: true,
             data: {
                 walletBalance: user.walletBalance,
                 bonusBalance: user.bonusBalance,
                 totalBalance: user.walletBalance + user.bonusBalance,
+                availableBalance,
+                pendingPayments,
+                pendingWithdrawalAmount,
             },
         });
     }
