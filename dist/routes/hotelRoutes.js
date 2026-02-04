@@ -23,6 +23,7 @@ router.use(auth_1.protect);
 router.post('/:hotelId/reviews', reviewController_1.createReview);
 // Admin only routes
 router.post('/', (0, auth_1.authorize)('admin'), hotelController_1.createHotel);
+router.post('/recalculate-prices', (0, auth_1.authorize)('admin'), hotelController_1.recalculateAllPriceRanges);
 router.put('/:id', (0, auth_1.authorize)('admin'), hotelController_1.updateHotel);
 router.delete('/:id', (0, auth_1.authorize)('admin'), hotelController_1.deleteHotel);
 router.post('/:id/images', (0, auth_1.authorize)('admin'), cloudinary_1.upload.array('images', 10), hotelController_1.uploadHotelImages);

@@ -14,13 +14,21 @@ export const getBookings = async (
 ): Promise<void> => {
   try {
     const { page, limit, skip } = getPagination(req);
-    const { status, paymentStatus, startDate, endDate } = req.query;
+    const { status, paymentStatus, startDate, endDate, search, checkInStart, checkInEnd, hotelId, roomId } = req.query;
 
     const query: any = {};
 
     // If not admin, only show user's own bookings
     if (req.user?.role !== 'admin') {
       query.user = req.user?._id;
+    }
+
+    if (hotelId) {
+      query.hotel = hotelId;
+    }
+
+    if (roomId) {
+      query.room = roomId;
     }
 
     if (status) {
@@ -31,10 +39,33 @@ export const getBookings = async (
       query.paymentStatus = paymentStatus;
     }
 
+    // Filter by creation date
     if (startDate || endDate) {
       query.createdAt = {};
       if (startDate) query.createdAt.$gte = new Date(startDate as string);
       if (endDate) query.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Filter by check-in date
+    if (checkInStart || checkInEnd) {
+      query.checkIn = {};
+      if (checkInStart) query.checkIn.$gte = new Date(checkInStart as string);
+      if (checkInEnd) query.checkIn.$lte = new Date(checkInEnd as string);
+    }
+
+    // Search text (name, phone, email, invoice)
+    if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
+      query.$or = [
+        { 'contactInfo.fullName': searchRegex },
+        { 'contactInfo.phone': searchRegex },
+        { 'contactInfo.email': searchRegex },
+        { invoiceNumber: searchRegex },
+        // Also allow searching by Booking ID (since it's an ObjectId, exact match or string check usually needed, but regex works on stringified ObjectId in aggregation, but here it's simple find)
+        // For simplicity in find(), we usually skip ObjectId regex unless we use aggregation. 
+        // We can check if search string is a valid ObjectId
+        ...(mongoose.Types.ObjectId.isValid(search as string) ? [{ _id: search }] : [])
+      ];
     }
 
     const [bookings, total] = await Promise.all([
@@ -156,6 +187,26 @@ export const createBooking = async (
       return;
     }
 
+    // Validate guest count against room capacity
+    const requestedAdults = guests?.adults || 1;
+    const requestedChildren = guests?.children || 0;
+
+    if (requestedAdults > room.capacity.adults) {
+      res.status(400).json({
+        success: false,
+        message: `Phòng này chỉ cho phép tối đa ${room.capacity.adults} người lớn`,
+      });
+      return;
+    }
+
+    if (requestedChildren > room.capacity.children) {
+      res.status(400).json({
+        success: false,
+        message: `Phòng này chỉ cho phép tối đa ${room.capacity.children} trẻ em`,
+      });
+      return;
+    }
+
     // Check room availability
     const bookedRooms = await Booking.countDocuments({
       room: roomId,
@@ -269,15 +320,24 @@ export const createBookingAdmin = async (
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
+    if (checkInDate >= checkOutDate) {
+      res.status(400).json({
+        success: false,
+        message: 'Ngày check-out phải sau ngày check-in',
+      });
+      return;
+    }
+
     const room = await Room.findById(roomId);
     if (!room) {
       res.status(404).json({ success: false, message: 'Room not found' });
       return;
     }
 
-    // Calculate total price
+    // Calculate total price breakdown
     const nights = calculateNights(checkInDate, checkOutDate);
-    let totalPrice = room.price * nights;
+    const roomPrice = room.price * nights;
+    let servicePrice = 0;
     const bookingServices: IBookingService[] = [];
 
     // Process services
@@ -287,7 +347,7 @@ export const createBookingAdmin = async (
         if (service) {
            const quantity = item.quantity || 1;
            const price = service.price;
-           totalPrice += price * quantity;
+           servicePrice += price * quantity;
            bookingServices.push({
              service: service._id,
              quantity,
@@ -297,6 +357,8 @@ export const createBookingAdmin = async (
       }
     }
 
+    const totalPrice = roomPrice + servicePrice;
+
     // Create booking
     const booking = await Booking.create({
       user: userId,
@@ -305,7 +367,10 @@ export const createBookingAdmin = async (
       checkIn: checkInDate,
       checkOut: checkOutDate,
       guests,
+      roomPrice,
+      servicePrice,
       totalPrice,
+      estimatedPrice: totalPrice,
       services: bookingServices,
       contactInfo,
       specialRequests,

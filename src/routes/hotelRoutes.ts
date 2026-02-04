@@ -8,6 +8,7 @@ import {
   uploadHotelImages,
   getFeaturedHotels,
   getPopularCities,
+  recalculateAllPriceRanges,
 } from '../controllers/hotelController';
 import {
   getRooms,
@@ -44,6 +45,7 @@ router.post('/:hotelId/reviews', createReview);
 
 // Admin only routes
 router.post('/', authorize('admin'), createHotel);
+router.post('/recalculate-prices', authorize('admin'), recalculateAllPriceRanges);
 router.put('/:id', authorize('admin'), updateHotel);
 router.delete('/:id', authorize('admin'), deleteHotel);
 router.post(

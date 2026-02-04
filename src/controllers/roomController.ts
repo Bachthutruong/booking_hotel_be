@@ -14,9 +14,25 @@ export const getRooms = async (
   try {
     const { hotelId } = req.params;
     const { page, limit, skip } = getPagination(req);
-    const { type, minPrice, maxPrice, capacity } = req.query;
+    const { type, minPrice, maxPrice, capacity, search, category, isActive } = req.query;
 
-    const query: any = { hotel: hotelId, isActive: true };
+    const query: any = { hotel: hotelId };
+
+    // Default isActive to true unless specified otherwise (for public API compatibility)
+    // Admin can pass 'all' to see everything, or 'true'/'false'
+    if (isActive === 'false') {
+      query.isActive = false;
+    } else if (isActive !== 'all') {
+      query.isActive = true;
+    }
+
+    if (search) {
+      query.name = { $regex: search as string, $options: 'i' };
+    }
+
+    if (category && category !== 'all') {
+      query.category = category;
+    }
 
     if (type) {
       query.type = type;
@@ -245,9 +261,10 @@ export const checkAvailability = async (
     const checkOutDate = new Date(checkOut as string);
 
     // Count booked rooms for this period
+    // Include all active booking statuses to prevent double booking
     const bookedRooms = await Booking.countDocuments({
       room: roomId,
-      status: { $in: ['pending', 'confirmed'] },
+      status: { $in: ['pending', 'pending_deposit', 'awaiting_approval', 'confirmed'] },
       $or: [
         {
           checkIn: { $lt: checkOutDate },
@@ -296,15 +313,16 @@ export const getAvailableRooms = async (
     const checkInDate = new Date(checkIn as string);
     const checkOutDate = new Date(checkOut as string);
 
-    // Get all active rooms for this hotel
-    const rooms = await Room.find({ hotel: hotelId, isActive: true }).lean();
+    // Get all active rooms for this hotel with category populated
+    const rooms = await Room.find({ hotel: hotelId, isActive: true }).populate('category').lean();
 
     // For each room, check availability
     const availableRooms = await Promise.all(
       rooms.map(async (room) => {
+        // Include all active booking statuses to prevent double booking
         const bookedRooms = await Booking.countDocuments({
           room: room._id,
-          status: { $in: ['pending', 'confirmed'] },
+          status: { $in: ['pending', 'pending_deposit', 'awaiting_approval', 'confirmed'] },
           $or: [
             {
               checkIn: { $lt: checkOutDate },

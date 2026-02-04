@@ -294,3 +294,39 @@ export const updateHotelPriceRange = async (hotelId: string): Promise<void> => {
     });
   }
 };
+
+// @desc    Recalculate all hotel price ranges
+// @route   POST /api/hotels/recalculate-prices
+// @access  Private/Admin
+export const recalculateAllPriceRanges = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const hotels = await Hotel.find({ isActive: true }).lean();
+
+    let updated = 0;
+    for (const hotel of hotels) {
+      const rooms = await Room.find({ hotel: hotel._id, isActive: true }).lean();
+
+      if (rooms.length > 0) {
+        const prices = rooms.map((r) => r.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+
+        await Hotel.findByIdAndUpdate(hotel._id, {
+          priceRange: { min: minPrice, max: maxPrice },
+        });
+        updated++;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Đã cập nhật giá cho ${updated} khách sạn`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

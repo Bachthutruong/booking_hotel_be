@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateHotelPriceRange = exports.getPopularCities = exports.getFeaturedHotels = exports.uploadHotelImages = exports.deleteHotel = exports.updateHotel = exports.createHotel = exports.getHotel = exports.getHotels = void 0;
+exports.recalculateAllPriceRanges = exports.updateHotelPriceRange = exports.getPopularCities = exports.getFeaturedHotels = exports.uploadHotelImages = exports.deleteHotel = exports.updateHotel = exports.createHotel = exports.getHotel = exports.getHotels = void 0;
 const models_1 = require("../models");
 const helpers_1 = require("../utils/helpers");
 // @desc    Get all hotels
@@ -244,4 +244,33 @@ const updateHotelPriceRange = async (hotelId) => {
     }
 };
 exports.updateHotelPriceRange = updateHotelPriceRange;
+// @desc    Recalculate all hotel price ranges
+// @route   POST /api/hotels/recalculate-prices
+// @access  Private/Admin
+const recalculateAllPriceRanges = async (req, res, next) => {
+    try {
+        const hotels = await models_1.Hotel.find({ isActive: true }).lean();
+        let updated = 0;
+        for (const hotel of hotels) {
+            const rooms = await models_1.Room.find({ hotel: hotel._id, isActive: true }).lean();
+            if (rooms.length > 0) {
+                const prices = rooms.map((r) => r.price);
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                await models_1.Hotel.findByIdAndUpdate(hotel._id, {
+                    priceRange: { min: minPrice, max: maxPrice },
+                });
+                updated++;
+            }
+        }
+        res.status(200).json({
+            success: true,
+            message: `Đã cập nhật giá cho ${updated} khách sạn`,
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.recalculateAllPriceRanges = recalculateAllPriceRanges;
 //# sourceMappingURL=hotelController.js.map
