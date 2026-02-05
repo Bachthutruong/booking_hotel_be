@@ -52,7 +52,7 @@ const depositRequestSchema = new mongoose_1.Schema({
     },
     proofImage: {
         type: String,
-        required: [true, 'Payment proof image is required'],
+        default: '',
     },
     bankInfo: {
         bankName: {
@@ -86,6 +86,13 @@ const depositRequestSchema = new mongoose_1.Schema({
     },
     approvedAt: {
         type: Date,
+    },
+    adminSignature: {
+        type: String,
+    },
+    isAdminCreated: {
+        type: Boolean,
+        default: false,
     },
 }, {
     timestamps: true,

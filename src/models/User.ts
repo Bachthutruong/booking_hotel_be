@@ -6,8 +6,8 @@ const userSchema = new Schema<IUser>(
   {
     email: {
       type: String,
-      required: [true, 'Email is required'],
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
     },
@@ -25,7 +25,8 @@ const userSchema = new Schema<IUser>(
     phone: {
       type: String,
       trim: true,
-      default: '',
+      unique: true,
+      sparse: true,
     },
     avatar: {
       type: String,
@@ -85,7 +86,7 @@ userSchema.methods.comparePassword = async function (
 
 // Index
 userSchema.index({ role: 1 });
-userSchema.index({ fullName: 'text', email: 'text' });
+userSchema.index({ fullName: 'text', email: 'text', phone: 'text' }); // Added phone to text search
 userSchema.index({ createdAt: -1 });
 
 const User = mongoose.model<IUser>('User', userSchema);

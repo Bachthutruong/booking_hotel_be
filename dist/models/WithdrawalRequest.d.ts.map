@@ -1,1 +1,1 @@
-{"version":3,"file":"WithdrawalRequest.d.ts","sourceRoot":"","sources":["../../src/models/WithdrawalRequest.ts"],"names":[],"mappings":"AAAA,OAAO,QAAoB,MAAM,UAAU,CAAC;AAC5C,OAAO,EAAE,kBAAkB,EAAE,MAAM,UAAU,CAAC;AAsD9C,QAAA,MAAM,iBAAiB;;;;;;2BAAmF,CAAC;AAE3G,eAAe,iBAAiB,CAAC"}
+{"version":3,"file":"WithdrawalRequest.d.ts","sourceRoot":"","sources":["../../src/models/WithdrawalRequest.ts"],"names":[],"mappings":"AAAA,OAAO,QAAoB,MAAM,UAAU,CAAC;AAC5C,OAAO,EAAE,kBAAkB,EAAE,MAAM,UAAU,CAAC;AA2E9C,QAAA,MAAM,iBAAiB;;;;;;2BAAmF,CAAC;AAE3G,eAAe,iBAAiB,CAAC"}

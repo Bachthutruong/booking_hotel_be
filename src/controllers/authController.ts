@@ -13,7 +13,7 @@ interface PendingRegistration {
   email: string;
   password: string;
   fullName: string;
-  phone: string;
+  phone?: string;
   verificationCode: string;
   expiresAt: Date;
 }
@@ -30,7 +30,7 @@ setInterval(() => {
   }
 }, 60000); // Every minute
 
-// @desc    Register user - Step 1: Send verification code
+// @desc    Register user - Step 1: Send verification code (OR create directly if phone only)
 // @route   POST /api/auth/register
 // @access  Public
 export const register = async (
@@ -42,58 +42,83 @@ export const register = async (
     const { email, password, fullName, phone } = req.body;
 
     // Validate required fields
-    if (!email || !password || !fullName) {
+    if ((!email && !phone) || !password || !fullName) {
       res.status(400).json({
         success: false,
-        message: 'Vui lòng nhập đầy đủ thông tin',
+        message: 'Vui lòng nhập đầy đủ thông tin (Email hoặc Số điện thoại)',
       });
       return;
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      res.status(400).json({
-        success: false,
-        message: 'Email đã được sử dụng',
+    if (email) {
+      const existingUserEmail = await User.findOne({ email });
+      if (existingUserEmail) {
+        res.status(400).json({ success: false, message: 'Email đã được sử dụng' });
+        return;
+      }
+    }
+
+    if (phone) {
+      const existingUserPhone = await User.findOne({ phone });
+      if (existingUserPhone) {
+        res.status(400).json({ success: false, message: 'Số điện thoại đã được sử dụng' });
+        return;
+      }
+    }
+
+    // CASE 1: Email provided -> Require verification
+    if (email) {
+      // Generate verification code
+      const verificationCode = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      // Store pending registration
+      pendingRegistrations.set(email, {
+        email,
+        password,
+        fullName,
+        phone,
+        verificationCode,
+        expiresAt,
+      });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, verificationCode, fullName);
+      } catch (emailError) {
+        console.error('Email sending error:', emailError);
+        res.status(500).json({
+          success: false,
+          message: 'Không thể gửi email xác thực. Vui lòng kiểm tra lại email hoặc thử lại sau.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Mã xác thực đã được gửi đến email của bạn',
+        requiresEmailVerification: true, // Flag for frontend
+        data: {
+          email,
+          expiresIn: 600,
+        },
       });
       return;
     }
 
-    // Generate verification code
-    const verificationCode = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Store pending registration
-    pendingRegistrations.set(email, {
-      email,
+    // CASE 2: No Email, Only Phone -> Create User Immediately
+    const user = await User.create({
+      phone,
       password,
       fullName,
-      phone: phone || '',
-      verificationCode,
-      expiresAt,
+      email: undefined, // Ensure sparse index works
+      isEmailVerified: true, // No email to verify
+      isActive: true
     });
 
-    // Send verification email
-    try {
-      await sendVerificationEmail(email, verificationCode, fullName);
-    } catch (emailError) {
-      console.error('Email sending error:', emailError);
-      res.status(500).json({
-        success: false,
-        message: 'Không thể gửi email xác thực. Vui lòng thử lại.',
-      });
-      return;
-    }
+    sendTokenResponse(user, 201, res);
 
-    res.status(200).json({
-      success: true,
-      message: 'Mã xác thực đã được gửi đến email của bạn',
-      data: {
-        email,
-        expiresIn: 600, // 10 minutes in seconds
-      },
-    });
   } catch (error) {
     next(error);
   }
@@ -153,8 +178,9 @@ export const verifyEmail = async (
       email: pendingRegistration.email,
       password: pendingRegistration.password,
       fullName: pendingRegistration.fullName,
-      phone: pendingRegistration.phone,
+      phone: pendingRegistration.phone || undefined,
       isEmailVerified: true,
+      isActive: true,
     });
 
     // Remove from pending
@@ -242,30 +268,42 @@ export const login = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, phone, identifier } = req.body; // Accept various input keys
 
-    // Validate email & password
-    if (!email || !password) {
+    // Determine login identifier
+    const loginIdentifier = identifier || email || phone;
+
+    if (!loginIdentifier || !password) {
       res.status(400).json({
         success: false,
-        message: 'Vui lòng nhập email và mật khẩu',
+        message: 'Vui lòng nhập Email/Số điện thoại và mật khẩu',
       });
       return;
     }
 
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    // Check for user by email OR phone
+    // We try to determine if it is an email
+    const isEmail = String(loginIdentifier).includes('@');
+    
+    let user;
+    if (isEmail) {
+      user = await User.findOne({ email: loginIdentifier }).select('+password');
+    } else {
+      user = await User.findOne({ phone: loginIdentifier }).select('+password');
+    }
 
     if (!user) {
       res.status(401).json({
         success: false,
-        message: 'Email hoặc mật khẩu không đúng',
+        message: 'Tài khoản hoặc mật khẩu không đúng',
       });
       return;
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
+    // Check if email is verified (Only if user has email and logged in via email - strict check? Or just if user has email?)
+    // Requirement: "nếu điền email thì phảu xác nhận email". 
+    // If user has email but isEmailVerified is false -> Block login
+    if (user.email && !user.isEmailVerified) {
       res.status(401).json({
         success: false,
         message: 'Email chưa được xác thực. Vui lòng xác thực email trước khi đăng nhập.',
@@ -280,7 +318,7 @@ export const login = async (
     if (!isMatch) {
       res.status(401).json({
         success: false,
-        message: 'Email hoặc mật khẩu không đúng',
+        message: 'Tài khoản hoặc mật khẩu không đúng',
       });
       return;
     }

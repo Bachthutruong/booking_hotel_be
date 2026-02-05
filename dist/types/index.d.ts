@@ -175,10 +175,12 @@ export interface IDepositRequest extends Document {
     adminNote?: string;
     approvedBy?: Types.ObjectId;
     approvedAt?: Date;
+    adminSignature?: string;
+    isAdminCreated?: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
-export type WithdrawalStatus = 'pending' | 'approved' | 'rejected' | 'completed';
+export type WithdrawalStatus = 'pending' | 'pending_confirmation' | 'approved' | 'rejected' | 'completed';
 export interface IWithdrawalRequest extends Document {
     _id: Types.ObjectId;
     user: Types.ObjectId;
@@ -192,6 +194,11 @@ export interface IWithdrawalRequest extends Document {
     adminNote?: string;
     processedBy?: Types.ObjectId;
     processedAt?: Date;
+    adminSignature?: string;
+    isAdminCreated?: boolean;
+    confirmationToken?: string;
+    userSignature?: string;
+    confirmedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }

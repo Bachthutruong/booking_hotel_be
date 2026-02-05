@@ -41,8 +41,8 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const userSchema = new mongoose_1.Schema({
     email: {
         type: String,
-        required: [true, 'Email is required'],
         unique: true,
+        sparse: true,
         lowercase: true,
         trim: true,
     },
@@ -60,7 +60,8 @@ const userSchema = new mongoose_1.Schema({
     phone: {
         type: String,
         trim: true,
-        default: '',
+        unique: true,
+        sparse: true,
     },
     avatar: {
         type: String,
@@ -113,7 +114,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 // Index
 userSchema.index({ role: 1 });
-userSchema.index({ fullName: 'text', email: 'text' });
+userSchema.index({ fullName: 'text', email: 'text', phone: 'text' }); // Added phone to text search
 userSchema.index({ createdAt: -1 });
 const User = mongoose_1.default.model('User', userSchema);
 exports.default = User;

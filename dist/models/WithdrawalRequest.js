@@ -43,7 +43,7 @@ const withdrawalRequestSchema = new mongoose_1.Schema({
     amount: {
         type: Number,
         required: [true, 'Amount is required'],
-        min: [10000, 'Minimum withdrawal is 10000 VND'],
+        min: [1000, 'Minimum withdrawal is 1000 VND'],
     },
     bankInfo: {
         bankName: {
@@ -61,7 +61,7 @@ const withdrawalRequestSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'completed'],
+        enum: ['pending', 'pending_confirmation', 'approved', 'rejected', 'completed'],
         default: 'pending',
     },
     adminNote: {
@@ -74,6 +74,25 @@ const withdrawalRequestSchema = new mongoose_1.Schema({
     processedAt: {
         type: Date,
     },
+    adminSignature: {
+        type: String,
+    },
+    isAdminCreated: {
+        type: Boolean,
+        default: false,
+    },
+    // New fields for confirmation flow
+    confirmationToken: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
+    userSignature: {
+        type: String,
+    },
+    confirmedAt: {
+        type: Date,
+    },
 }, {
     timestamps: true,
 });
@@ -81,6 +100,7 @@ const withdrawalRequestSchema = new mongoose_1.Schema({
 withdrawalRequestSchema.index({ user: 1, createdAt: -1 });
 withdrawalRequestSchema.index({ status: 1 });
 withdrawalRequestSchema.index({ createdAt: -1 });
+withdrawalRequestSchema.index({ confirmationToken: 1 });
 const WithdrawalRequest = mongoose_1.default.model('WithdrawalRequest', withdrawalRequestSchema);
 exports.default = WithdrawalRequest;
 //# sourceMappingURL=WithdrawalRequest.js.map

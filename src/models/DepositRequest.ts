@@ -20,7 +20,7 @@ const depositRequestSchema = new Schema<IDepositRequest>(
     },
     proofImage: {
       type: String,
-      required: [true, 'Payment proof image is required'],
+      default: '',
     },
     bankInfo: {
       bankName: {
@@ -54,6 +54,13 @@ const depositRequestSchema = new Schema<IDepositRequest>(
     },
     approvedAt: {
       type: Date,
+    },
+    adminSignature: {
+      type: String,
+    },
+    isAdminCreated: {
+      type: Boolean,
+      default: false,
     },
   },
   {

@@ -13,4 +13,9 @@ export declare const processWithdrawalRequest: (req: AuthRequest, res: Response<
 export declare const getAllUsersWallet: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
 export declare const getUserWalletDetails: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
 export declare const getAllTransactions: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const adminCreateDeposit: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const adminCreateWithdrawal: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getWithdrawalByToken: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const confirmWithdrawal: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
+export declare const getWithdrawalDetail: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
 //# sourceMappingURL=walletController.d.ts.map

@@ -801,3 +801,395 @@ export const getAllTransactions = async (req: AuthRequest, res: Response<ApiResp
     });
   }
 };
+
+// ADMIN: Create deposit for user (admin-initiated)
+export const adminCreateDeposit = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { userId, amount, note, signature } = req.body;
+
+    if (!userId || !amount || amount < 1000) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and amount (minimum 1,000 VND) are required',
+      });
+    }
+
+    if (!signature) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Digital signature is required for this transaction',
+      });
+    }
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Find applicable promotion
+    const now = new Date();
+    const promotion = await PromotionConfig.findOne({
+      isActive: true,
+      depositAmount: { $lte: amount },
+      $or: [
+        { startDate: null, endDate: null },
+        { startDate: { $lte: now }, endDate: { $gte: now } },
+        { startDate: { $lte: now }, endDate: null },
+        { startDate: null, endDate: { $gte: now } },
+      ],
+    }).sort({ depositAmount: -1 }).session(session);
+
+    let bonusAmount = 0;
+    if (promotion) {
+      if (promotion.bonusPercent) {
+        bonusAmount = Math.floor(amount * promotion.bonusPercent / 100);
+        if (promotion.maxBonus && bonusAmount > promotion.maxBonus) {
+          bonusAmount = promotion.maxBonus;
+        }
+      } else if (promotion.bonusAmount) {
+        bonusAmount = promotion.bonusAmount;
+      }
+    }
+
+    // Create deposit request with approved status
+    const depositRequest = await DepositRequest.create([{
+      user: userId,
+      amount,
+      bonusAmount,
+      proofImage: '',
+      bankInfo: {
+        bankName: 'Admin',
+        accountNumber: 'N/A',
+        accountName: req.user!.fullName || 'Admin',
+        transferContent: `Admin deposit - ${note || 'No note'}`,
+      },
+      status: 'approved',
+      adminNote: note,
+      approvedBy: req.user!._id,
+      approvedAt: new Date(),
+      adminSignature: signature,
+      isAdminCreated: true,
+    }], { session });
+
+    const balanceBefore = user.walletBalance;
+    const bonusBalanceBefore = user.bonusBalance;
+
+    user.walletBalance += amount;
+    user.bonusBalance += bonusAmount;
+    await user.save({ session });
+
+    // Create transaction records
+    await WalletTransaction.create([{
+      user: user._id,
+      type: 'deposit',
+      amount: amount,
+      balanceBefore,
+      balanceAfter: user.walletBalance,
+      bonusBalanceBefore,
+      bonusBalanceAfter: user.bonusBalance,
+      description: `Nạp tiền bởi Admin - ${amount.toLocaleString()} VND${note ? ` (${note})` : ''}`,
+      reference: depositRequest[0]._id,
+      referenceModel: 'DepositRequest',
+      status: 'completed',
+    }], { session });
+
+    if (bonusAmount > 0) {
+      await WalletTransaction.create([{
+        user: user._id,
+        type: 'bonus',
+        amount: bonusAmount,
+        balanceBefore: user.walletBalance,
+        balanceAfter: user.walletBalance,
+        bonusBalanceBefore,
+        bonusBalanceAfter: user.bonusBalance,
+        description: `Khuyến mãi nạp tiền - ${bonusAmount.toLocaleString()} VND`,
+        reference: depositRequest[0]._id,
+        referenceModel: 'DepositRequest',
+        status: 'completed',
+      }], { session });
+    }
+
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully deposited ${amount.toLocaleString()} VND for user ${user.fullName}`,
+      data: depositRequest[0],
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Admin create deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// ADMIN: Create withdrawal for user (admin-initiated) - Creates pending confirmation request
+export const adminCreateWithdrawal = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { userId, amount, note, bankInfo } = req.body;
+
+    if (!userId || !amount || amount < 1000) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and amount (minimum 1,000 VND) are required',
+      });
+    }
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (user.walletBalance < amount) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient balance. User wallet: ${user.walletBalance.toLocaleString()} VND`,
+      });
+    }
+
+    // Generate confirmation token
+    const crypto = require('crypto');
+    const confirmationToken = crypto.randomBytes(32).toString('hex');
+
+    // Create withdrawal request with pending_confirmation status
+    const withdrawalRequest = await WithdrawalRequest.create([{
+      user: userId,
+      amount,
+      bankInfo: bankInfo || {
+        bankName: 'Cash',
+        accountNumber: 'N/A',
+        accountName: user.fullName || 'User',
+      },
+      status: 'pending_confirmation',
+      adminNote: note,
+      processedBy: req.user!._id,
+      processedAt: new Date(),
+      isAdminCreated: true,
+      confirmationToken,
+    }], { session });
+
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      message: `Withdrawal request created. Waiting for user confirmation.`,
+      data: {
+        ...withdrawalRequest[0].toObject(),
+        confirmationUrl: `/withdraw/confirm/${confirmationToken}`,
+      },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Admin create withdrawal error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Get withdrawal by confirmation token (for user to view before confirming)
+export const getWithdrawalByToken = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  try {
+    const { token } = req.params;
+
+    const withdrawal = await WithdrawalRequest.findOne({ confirmationToken: token })
+      .populate('user', 'fullName email phone')
+      .populate('processedBy', 'fullName');
+
+    if (!withdrawal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Withdrawal request not found',
+      });
+    }
+
+    // Check if the logged-in user is the owner
+    if (withdrawal.user._id.toString() !== req.user!._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view this withdrawal request',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: withdrawal,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
+
+// User confirms withdrawal with signature
+export const confirmWithdrawal = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { token } = req.params;
+    const { userSignature } = req.body;
+
+    if (!userSignature) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'User signature is required',
+      });
+    }
+
+    const withdrawal = await WithdrawalRequest.findOne({ confirmationToken: token }).session(session);
+
+    if (!withdrawal) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Withdrawal request not found',
+      });
+    }
+
+    // Check if the logged-in user is the owner
+    if (withdrawal.user.toString() !== req.user!._id.toString()) {
+      await session.abortTransaction();
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to confirm this withdrawal',
+      });
+    }
+
+    if (withdrawal.status !== 'pending_confirmation') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'This withdrawal request has already been processed',
+      });
+    }
+
+    const user = await User.findById(withdrawal.user).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (user.walletBalance < withdrawal.amount) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient balance. Your wallet: ${user.walletBalance.toLocaleString()} VND`,
+      });
+    }
+
+    // Update withdrawal status
+    withdrawal.status = 'completed';
+    withdrawal.userSignature = userSignature;
+    withdrawal.confirmedAt = new Date();
+    await withdrawal.save({ session });
+
+    // Deduct from wallet
+    const balanceBefore = user.walletBalance;
+    user.walletBalance -= withdrawal.amount;
+    await user.save({ session });
+
+    // Create transaction record
+    await WalletTransaction.create([{
+      user: user._id,
+      type: 'withdrawal',
+      amount: withdrawal.amount,
+      balanceBefore,
+      balanceAfter: user.walletBalance,
+      bonusBalanceBefore: user.bonusBalance,
+      bonusBalanceAfter: user.bonusBalance,
+      description: `Rút tiền - ${withdrawal.amount.toLocaleString()} VND${withdrawal.adminNote ? ` (${withdrawal.adminNote})` : ''}`,
+      reference: withdrawal._id,
+      referenceModel: 'WithdrawalRequest',
+      status: 'completed',
+    }], { session });
+
+    await session.commitTransaction();
+
+    res.json({
+      success: true,
+      message: `Successfully confirmed withdrawal of ${withdrawal.amount.toLocaleString()} VND`,
+      data: withdrawal,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Confirm withdrawal error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Get withdrawal detail by ID (for both admin and user)
+export const getWithdrawalDetail = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  try {
+    const { id } = req.params;
+
+    const withdrawal = await WithdrawalRequest.findById(id)
+      .populate('user', 'fullName email phone')
+      .populate('processedBy', 'fullName');
+
+    if (!withdrawal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Withdrawal request not found',
+      });
+    }
+
+    // Check authorization: either admin or the owner
+    const isAdmin = req.user!.role === 'admin';
+    const isOwner = withdrawal.user._id.toString() === req.user!._id.toString();
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view this withdrawal request',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: withdrawal,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
