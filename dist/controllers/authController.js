@@ -3,266 +3,102 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.changePassword = exports.getMe = exports.logout = exports.login = exports.resendVerificationCode = exports.verifyEmail = exports.register = void 0;
 const models_1 = require("../models");
 const jwt_1 = require("../utils/jwt");
-const emailService_1 = require("../utils/emailService");
-const pendingRegistrations = new Map();
-// Clean up expired registrations periodically
-setInterval(() => {
-    const now = new Date();
-    for (const [email, registration] of pendingRegistrations.entries()) {
-        if (registration.expiresAt < now) {
-            pendingRegistrations.delete(email);
-        }
-    }
-}, 60000); // Every minute
-// @desc    Register user - Step 1: Send verification code (OR create directly if phone only)
+// @desc    Register user - chỉ cần tên, email, số điện thoại
+// Logic: 1 cặp (email, phone) chỉ đăng ký được 1 tài khoản. Cùng email khác phone hoặc cùng phone khác email thì được nhiều tài khoản.
 // @route   POST /api/auth/register
 // @access  Public
 const register = async (req, res, next) => {
     try {
-        const { email, password, fullName, phone } = req.body;
-        // Validate required fields
-        if ((!email && !phone) || !password || !fullName) {
+        const { email, fullName, phone } = req.body;
+        if (!email || !fullName || !phone) {
             res.status(400).json({
                 success: false,
-                message: 'Vui lòng nhập đầy đủ thông tin (Email hoặc Số điện thoại)',
+                message: 'Vui lòng nhập đầy đủ: Họ tên, Email và Số điện thoại',
             });
             return;
         }
-        // Check if user already exists
-        if (email) {
-            const existingUserEmail = await models_1.User.findOne({ email });
-            if (existingUserEmail) {
-                res.status(400).json({ success: false, message: 'Email đã được sử dụng' });
-                return;
-            }
-        }
-        if (phone) {
-            const existingUserPhone = await models_1.User.findOne({ phone });
-            if (existingUserPhone) {
-                res.status(400).json({ success: false, message: 'Số điện thoại đã được sử dụng' });
-                return;
-            }
-        }
-        // CASE 1: Email provided -> Require verification
-        if (email) {
-            // Generate verification code
-            const verificationCode = (0, emailService_1.generateVerificationCode)();
-            const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-            // Store pending registration
-            pendingRegistrations.set(email, {
-                email,
-                password,
-                fullName,
-                phone,
-                verificationCode,
-                expiresAt,
-            });
-            // Send verification email
-            try {
-                await (0, emailService_1.sendVerificationEmail)(email, verificationCode, fullName);
-            }
-            catch (emailError) {
-                console.error('Email sending error:', emailError);
-                res.status(500).json({
-                    success: false,
-                    message: 'Không thể gửi email xác thực. Vui lòng kiểm tra lại email hoặc thử lại sau.',
-                });
-                return;
-            }
-            res.status(200).json({
-                success: true,
-                message: 'Mã xác thực đã được gửi đến email của bạn',
-                requiresEmailVerification: true, // Flag for frontend
-                data: {
-                    email,
-                    expiresIn: 600,
-                },
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const normalizedPhone = String(phone).trim();
+        // Cặp (email, phone) đã tồn tại thì chỉ cho 1 tài khoản
+        const existingUser = await models_1.User.findOne({
+            email: normalizedEmail,
+            phone: normalizedPhone,
+        });
+        if (existingUser) {
+            res.status(400).json({
+                success: false,
+                message: 'Email và Số điện thoại này đã được đăng ký. Vui lòng đăng nhập hoặc dùng thông tin khác.',
             });
             return;
         }
-        // CASE 2: No Email, Only Phone -> Create User Immediately
         const user = await models_1.User.create({
-            phone,
-            password,
-            fullName,
-            email: undefined, // Ensure sparse index works
-            isEmailVerified: true, // No email to verify
-            isActive: true
+            email: normalizedEmail,
+            fullName: String(fullName).trim(),
+            phone: normalizedPhone,
+            isEmailVerified: true,
+            isActive: true,
         });
         (0, jwt_1.sendTokenResponse)(user, 201, res);
     }
     catch (error) {
+        // Duplicate key (email, phone) từ index unique
+        if (error.code === 11000) {
+            res.status(400).json({
+                success: false,
+                message: 'Email và Số điện thoại này đã được đăng ký.',
+            });
+            return;
+        }
         next(error);
     }
 };
 exports.register = register;
-// @desc    Verify email and complete registration
+// @desc    Verify email and complete registration (giữ cho tương thích cũ, không dùng trong flow mới)
 // @route   POST /api/auth/verify-email
 // @access  Public
 const verifyEmail = async (req, res, next) => {
-    try {
-        const { email, code } = req.body;
-        if (!email || !code) {
-            res.status(400).json({
-                success: false,
-                message: 'Vui lòng nhập email và mã xác thực',
-            });
-            return;
-        }
-        // Check pending registration
-        const pendingRegistration = pendingRegistrations.get(email);
-        if (!pendingRegistration) {
-            res.status(400).json({
-                success: false,
-                message: 'Không tìm thấy yêu cầu đăng ký hoặc đã hết hạn. Vui lòng đăng ký lại.',
-            });
-            return;
-        }
-        // Check if expired
-        if (pendingRegistration.expiresAt < new Date()) {
-            pendingRegistrations.delete(email);
-            res.status(400).json({
-                success: false,
-                message: 'Mã xác thực đã hết hạn. Vui lòng đăng ký lại.',
-            });
-            return;
-        }
-        // Verify code
-        if (pendingRegistration.verificationCode !== code) {
-            res.status(400).json({
-                success: false,
-                message: 'Mã xác thực không đúng',
-            });
-            return;
-        }
-        // Create user
-        const user = await models_1.User.create({
-            email: pendingRegistration.email,
-            password: pendingRegistration.password,
-            fullName: pendingRegistration.fullName,
-            phone: pendingRegistration.phone || undefined,
-            isEmailVerified: true,
-            isActive: true,
-        });
-        // Remove from pending
-        pendingRegistrations.delete(email);
-        // Send welcome email (non-blocking)
-        (0, emailService_1.sendWelcomeEmail)(email, pendingRegistration.fullName).catch(console.error);
-        (0, jwt_1.sendTokenResponse)(user, 201, res);
-    }
-    catch (error) {
-        next(error);
-    }
+    res.status(400).json({
+        success: false,
+        message: 'Flow xác thực email không còn sử dụng. Vui lòng đăng ký với Email và Số điện thoại.',
+    });
 };
 exports.verifyEmail = verifyEmail;
-// @desc    Resend verification code
+// @desc    Resend verification code (giữ cho tương thích)
 // @route   POST /api/auth/resend-code
 // @access  Public
 const resendVerificationCode = async (req, res, next) => {
-    try {
-        const { email } = req.body;
-        if (!email) {
-            res.status(400).json({
-                success: false,
-                message: 'Vui lòng nhập email',
-            });
-            return;
-        }
-        // Check pending registration
-        const pendingRegistration = pendingRegistrations.get(email);
-        if (!pendingRegistration) {
-            res.status(400).json({
-                success: false,
-                message: 'Không tìm thấy yêu cầu đăng ký. Vui lòng đăng ký lại.',
-            });
-            return;
-        }
-        // Generate new code
-        const verificationCode = (0, emailService_1.generateVerificationCode)();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-        // Update pending registration
-        pendingRegistration.verificationCode = verificationCode;
-        pendingRegistration.expiresAt = expiresAt;
-        pendingRegistrations.set(email, pendingRegistration);
-        // Send verification email
-        try {
-            await (0, emailService_1.sendVerificationEmail)(email, verificationCode, pendingRegistration.fullName);
-        }
-        catch (emailError) {
-            console.error('Email sending error:', emailError);
-            res.status(500).json({
-                success: false,
-                message: 'Không thể gửi email xác thực. Vui lòng thử lại.',
-            });
-            return;
-        }
-        res.status(200).json({
-            success: true,
-            message: 'Mã xác thực mới đã được gửi đến email của bạn',
-            data: {
-                email,
-                expiresIn: 600,
-            },
-        });
-    }
-    catch (error) {
-        next(error);
-    }
+    res.status(400).json({
+        success: false,
+        message: 'Flow xác thực email không còn sử dụng.',
+    });
 };
 exports.resendVerificationCode = resendVerificationCode;
-// @desc    Login user
+// @desc    Login - chỉ cần email và số điện thoại (không mật khẩu)
 // @route   POST /api/auth/login
 // @access  Public
 const login = async (req, res, next) => {
     try {
-        const { email, password, phone, identifier } = req.body; // Accept various input keys
-        // Determine login identifier
-        const loginIdentifier = identifier || email || phone;
-        if (!loginIdentifier || !password) {
+        const { email, phone } = req.body;
+        if (!email || !phone) {
             res.status(400).json({
                 success: false,
-                message: 'Vui lòng nhập Email/Số điện thoại và mật khẩu',
+                message: 'Vui lòng nhập Email và Số điện thoại',
             });
             return;
         }
-        // Check for user by email OR phone
-        // We try to determine if it is an email
-        const isEmail = String(loginIdentifier).includes('@');
-        let user;
-        if (isEmail) {
-            user = await models_1.User.findOne({ email: loginIdentifier }).select('+password');
-        }
-        else {
-            user = await models_1.User.findOne({ phone: loginIdentifier }).select('+password');
-        }
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const normalizedPhone = String(phone).trim();
+        const user = await models_1.User.findOne({
+            email: normalizedEmail,
+            phone: normalizedPhone,
+        });
         if (!user) {
             res.status(401).json({
                 success: false,
-                message: 'Tài khoản hoặc mật khẩu không đúng',
+                message: 'Không tìm thấy tài khoản với Email và Số điện thoại này.',
             });
             return;
         }
-        // Check if email is verified (Only if user has email and logged in via email - strict check? Or just if user has email?)
-        // Requirement: "nếu điền email thì phảu xác nhận email". 
-        // If user has email but isEmailVerified is false -> Block login
-        if (user.email && !user.isEmailVerified) {
-            res.status(401).json({
-                success: false,
-                message: 'Email chưa được xác thực. Vui lòng xác thực email trước khi đăng nhập.',
-                code: 'EMAIL_NOT_VERIFIED',
-            });
-            return;
-        }
-        // Check if password matches
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            res.status(401).json({
-                success: false,
-                message: 'Tài khoản hoặc mật khẩu không đúng',
-            });
-            return;
-        }
-        // Check if user is active
         if (!user.isActive) {
             res.status(401).json({
                 success: false,
@@ -301,7 +137,7 @@ const getMe = async (req, res) => {
     });
 };
 exports.getMe = getMe;
-// @desc    Change password
+// @desc    Change password (chỉ khi user có password)
 // @route   PUT /api/auth/change-password
 // @access  Private
 const changePassword = async (req, res, next) => {
@@ -322,7 +158,13 @@ const changePassword = async (req, res, next) => {
             });
             return;
         }
-        // Check current password
+        if (!user.password) {
+            res.status(400).json({
+                success: false,
+                message: 'Tài khoản đăng ký bằng Email + Số điện thoại không có mật khẩu.',
+            });
+            return;
+        }
         const isMatch = await user.comparePassword(currentPassword);
         if (!isMatch) {
             res.status(401).json({

@@ -35,6 +35,10 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const serviceSchema = new mongoose_1.Schema({
+    category: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'ServiceCategory',
+    },
     name: {
         type: String,
         required: [true, 'Service name is required'],
@@ -56,6 +60,10 @@ const serviceSchema = new mongoose_1.Schema({
         type: String,
     },
     isActive: {
+        type: Boolean,
+        default: true,
+    },
+    requiresConfirmation: {
         type: Boolean,
         default: true,
     },

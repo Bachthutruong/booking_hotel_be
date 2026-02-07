@@ -5,11 +5,15 @@ export declare const getBooking: (req: AuthRequest, res: Response, next: NextFun
 export declare const createBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const createBookingAdmin: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const uploadPaymentProof: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const uploadProofFile: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const payDepositFromWallet: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const approveBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const cancelBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const updateBookingStatus: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const checkInBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const addServiceToBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const markServiceDelivered: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const markAllServicesDelivered: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const getBookingBill: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const checkoutBooking: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const payWithWallet: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;

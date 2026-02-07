@@ -141,11 +141,10 @@ const deleteRoom = async (req, res, next) => {
             });
             return;
         }
-        // Soft delete
-        room.isActive = false;
-        await room.save();
-        // Update hotel price range
-        await (0, hotelController_1.updateHotelPriceRange)(room.hotel.toString());
+        const hotelId = room.hotel.toString();
+        await models_1.Room.findByIdAndDelete(req.params.id);
+        // Update hotel price range after removing room
+        await (0, hotelController_1.updateHotelPriceRange)(hotelId);
         res.status(200).json({
             success: true,
             message: 'Đã xóa phòng',

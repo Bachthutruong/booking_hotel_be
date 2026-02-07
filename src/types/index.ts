@@ -5,7 +5,7 @@ import { Document, Types } from 'mongoose';
 export interface IUser extends Document {
   _id: Types.ObjectId;
   email: string;
-  password: string;
+  password?: string;
   fullName: string;
   phone: string;
   avatar: string;
@@ -80,6 +80,8 @@ export interface IBookingService {
   service: Types.ObjectId;
   quantity: number;
   price: number;
+  addedAt?: Date;      // Ngày giờ thêm dịch vụ
+  deliveredAt?: Date;  // Admin đã bàn giao (cho dịch vụ cần xác nhận)
 }
 
 export type PaymentMethod = 'bank_transfer' | 'wallet' | 'cash';
@@ -123,15 +125,43 @@ export interface IBooking extends Document {
   updatedAt: Date;
 }
 
+// Service Category Types
+export interface IServiceCategory extends Document {
+  _id: Types.ObjectId;
+  name: string;
+  description: string;
+  icon?: string;
+  order: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Service Types
 export interface IService extends Document {
   _id: Types.ObjectId;
+  category?: Types.ObjectId;
   name: string;
   description: string;
   price: number;
   icon?: string;
   qrCode?: string;
   isActive: boolean;
+  requiresConfirmation?: boolean; // Mặc định true: admin cần xác nhận đã bàn giao
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Notification Types (for admin: e.g. user added service to booking)
+export interface INotification extends Document {
+  _id: Types.ObjectId;
+  type: string; // 'booking_service_added' | etc.
+  title: string;
+  message: string;
+  read: boolean;
+  recipientRole: 'admin';
+  referenceType?: 'Booking';
+  referenceId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -277,4 +307,6 @@ export interface ApiResponse<T = any> {
     total: number;
     totalPages: number;
   };
+  /** Số thông báo chưa đọc (dùng cho GET /notifications) */
+  unreadCount?: number;
 }

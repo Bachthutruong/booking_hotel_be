@@ -4,6 +4,8 @@ export { default as Room } from './Room';
 export { default as Booking } from './Booking';
 export { default as Review } from './Review';
 export { default as Service } from './Service';
+export { default as ServiceCategory } from './ServiceCategory';
+export { default as Notification } from './Notification';
 export { default as SystemConfig } from './SystemConfig';
 export { default as WalletTransaction } from './WalletTransaction';
 export { default as DepositRequest } from './DepositRequest';

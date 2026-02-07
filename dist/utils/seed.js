@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const models_1 = require("../models");
 dotenv_1.default.config();
 const seedData = async () => {
@@ -17,28 +16,27 @@ const seedData = async () => {
         await models_1.Hotel.deleteMany({});
         await models_1.Room.deleteMany({});
         console.log('Cleared existing data');
-        // Create admin user
-        const adminPassword = await bcryptjs_1.default.hash('admin123', 10);
+        // Tạo user theo logic mới: chỉ email + phone (không mật khẩu), cặp (email, phone) là duy nhất
+        // Admin
         const admin = await models_1.User.create({
             email: 'admin@booking.com',
-            password: adminPassword,
             fullName: 'Admin',
             phone: '0123456789',
             role: 'admin',
+            isEmailVerified: true,
             isActive: true,
         });
-        console.log('Created admin user:', admin.email);
-        // Create test user
-        const userPassword = await bcryptjs_1.default.hash('user123', 10);
+        console.log('Created admin user:', admin.email, '/', admin.phone);
+        // User thường
         const user = await models_1.User.create({
             email: 'user@test.com',
-            password: userPassword,
             fullName: 'Nguyễn Văn A',
             phone: '0987654321',
             role: 'user',
+            isEmailVerified: true,
             isActive: true,
         });
-        console.log('Created test user:', user.email);
+        console.log('Created test user:', user.email, '/', user.phone);
         // Create hotels
         const hotels = await models_1.Hotel.insertMany([
             {
@@ -285,9 +283,9 @@ const seedData = async () => {
         await models_1.Room.insertMany(rooms);
         console.log(`Created ${rooms.length} rooms`);
         console.log('\n=== Seed completed successfully ===');
-        console.log('\nTest accounts:');
-        console.log('Admin: admin@booking.com / admin123');
-        console.log('User: user@test.com / user123');
+        console.log('\nĐăng nhập bằng Email + Số điện thoại (không mật khẩu):');
+        console.log('Admin:  email = admin@booking.com   |  SĐT = 0123456789');
+        console.log('User:   email = user@test.com      |  SĐT = 0987654321');
         process.exit(0);
     }
     catch (error) {

@@ -2,12 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getServiceQRData = exports.getServiceByQR = exports.deleteService = exports.updateService = exports.createService = exports.getService = exports.getAdminServices = exports.getServices = void 0;
 const models_1 = require("../models");
-// @desc    Get all services
+// @desc    Get all services (optional filter by category)
 // @route   GET /api/services
 // @access  Public
 const getServices = async (req, res, next) => {
     try {
-        const services = await models_1.Service.find({ isActive: true });
+        const categoryId = req.query.category;
+        const query = { isActive: true };
+        if (categoryId)
+            query.category = categoryId;
+        const services = await models_1.Service.find(query)
+            .populate('category', 'name icon order')
+            .sort({ 'category.order': 1, name: 1 });
         res.status(200).json({
             success: true,
             data: services,
@@ -26,8 +32,13 @@ const getAdminServices = async (req, res, next) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-        const total = await models_1.Service.countDocuments();
-        const services = await models_1.Service.find()
+        const categoryFilter = req.query.category;
+        const query = {};
+        if (categoryFilter)
+            query.category = categoryFilter;
+        const total = await models_1.Service.countDocuments(query);
+        const services = await models_1.Service.find(query)
+            .populate('category', 'name icon order')
             .skip(skip)
             .limit(limit)
             .sort({ createdAt: -1 });

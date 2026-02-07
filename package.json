@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "tsx src/utils/seed.ts"
+    "seed": "tsx src/utils/seed.ts",
+    "seed:users": "tsx src/utils/seed-users-only.ts",
+    "seed:services": "tsx src/utils/seed-services.ts"
   },
   "keywords": [
     "hotel",

@@ -3,6 +3,10 @@ import { IService } from '../types';
 
 const serviceSchema = new Schema<IService>(
   {
+    category: {
+      type: Schema.Types.ObjectId,
+      ref: 'ServiceCategory',
+    },
     name: {
       type: String,
       required: [true, 'Service name is required'],
@@ -24,6 +28,10 @@ const serviceSchema = new Schema<IService>(
       type: String,
     },
     isActive: {
+      type: Boolean,
+      default: true,
+    },
+    requiresConfirmation: {
       type: Boolean,
       default: true,
     },

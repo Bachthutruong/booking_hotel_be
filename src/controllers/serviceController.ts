@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Service } from '../models';
 import { AuthRequest } from '../types';
 
-// @desc    Get all services
+// @desc    Get all services (optional filter by category)
 // @route   GET /api/services
 // @access  Public
 export const getServices = async (
@@ -11,7 +11,13 @@ export const getServices = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const services = await Service.find({ isActive: true });
+    const categoryId = req.query.category as string | undefined;
+    const query: { isActive: boolean; category?: string } = { isActive: true };
+    if (categoryId) query.category = categoryId;
+
+    const services = await Service.find(query)
+      .populate('category', 'name icon order')
+      .sort({ 'category.order': 1, name: 1 });
     res.status(200).json({
       success: true,
       data: services,
@@ -34,8 +40,13 @@ export const getAdminServices = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const total = await Service.countDocuments();
-    const services = await Service.find()
+    const categoryFilter = req.query.category as string | undefined;
+    const query: { category?: string } = {};
+    if (categoryFilter) query.category = categoryFilter;
+
+    const total = await Service.countDocuments(query);
+    const services = await Service.find(query)
+      .populate('category', 'name icon order')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });

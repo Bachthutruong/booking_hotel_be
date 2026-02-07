@@ -41,14 +41,11 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const userSchema = new mongoose_1.Schema({
     email: {
         type: String,
-        unique: true,
-        sparse: true,
         lowercase: true,
         trim: true,
     },
     password: {
         type: String,
-        required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters'],
         select: false,
     },
@@ -60,8 +57,6 @@ const userSchema = new mongoose_1.Schema({
     phone: {
         type: String,
         trim: true,
-        unique: true,
-        sparse: true,
     },
     avatar: {
         type: String,
@@ -101,20 +96,23 @@ const userSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// Hash password before saving - Fixed: Don't use next() with async functions in Mongoose 5+
+// Hash password before saving (chỉ khi có password)
 userSchema.pre('save', async function () {
-    if (!this.isModified('password'))
+    if (!this.isModified('password') || !this.password)
         return;
     const salt = await bcryptjs_1.default.genSalt(10);
     this.password = await bcryptjs_1.default.hash(this.password, salt);
 });
-// Compare password method
+// Compare password method (trả về false nếu user không có password)
 userSchema.methods.comparePassword = async function (candidatePassword) {
+    if (!this.password)
+        return false;
     return bcryptjs_1.default.compare(candidatePassword, this.password);
 };
-// Index
+// Index: Cặp (email, phone) là duy nhất khi cả hai có giá trị - 1 email hoặc 1 SĐT có thể dùng nhiều tài khoản nếu cái còn lại khác
+userSchema.index({ email: 1, phone: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1 });
-userSchema.index({ fullName: 'text', email: 'text', phone: 'text' }); // Added phone to text search
+userSchema.index({ fullName: 'text', email: 'text', phone: 'text' });
 userSchema.index({ createdAt: -1 });
 const User = mongoose_1.default.model('User', userSchema);
 exports.default = User;

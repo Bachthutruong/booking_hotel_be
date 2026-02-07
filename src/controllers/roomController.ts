@@ -172,12 +172,11 @@ export const deleteRoom = async (
       return;
     }
 
-    // Soft delete
-    room.isActive = false;
-    await room.save();
+    const hotelId = room.hotel.toString();
+    await Room.findByIdAndDelete(req.params.id);
 
-    // Update hotel price range
-    await updateHotelPriceRange(room.hotel.toString());
+    // Update hotel price range after removing room
+    await updateHotelPriceRange(hotelId);
 
     res.status(200).json({
       success: true,

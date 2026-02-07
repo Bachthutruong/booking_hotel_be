@@ -3,7 +3,7 @@ import { Document, Types } from 'mongoose';
 export interface IUser extends Document {
     _id: Types.ObjectId;
     email: string;
-    password: string;
+    password?: string;
     fullName: string;
     phone: string;
     avatar: string;
@@ -70,6 +70,8 @@ export interface IBookingService {
     service: Types.ObjectId;
     quantity: number;
     price: number;
+    addedAt?: Date;
+    deliveredAt?: Date;
 }
 export type PaymentMethod = 'bank_transfer' | 'wallet' | 'cash';
 export type PaymentOption = 'use_bonus' | 'use_main_only';
@@ -110,14 +112,38 @@ export interface IBooking extends Document {
     createdAt: Date;
     updatedAt: Date;
 }
+export interface IServiceCategory extends Document {
+    _id: Types.ObjectId;
+    name: string;
+    description: string;
+    icon?: string;
+    order: number;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+}
 export interface IService extends Document {
     _id: Types.ObjectId;
+    category?: Types.ObjectId;
     name: string;
     description: string;
     price: number;
     icon?: string;
     qrCode?: string;
     isActive: boolean;
+    requiresConfirmation?: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface INotification extends Document {
+    _id: Types.ObjectId;
+    type: string;
+    title: string;
+    message: string;
+    read: boolean;
+    recipientRole: 'admin';
+    referenceType?: 'Booking';
+    referenceId?: Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -242,5 +268,7 @@ export interface ApiResponse<T = any> {
         total: number;
         totalPages: number;
     };
+    /** Số thông báo chưa đọc (dùng cho GET /notifications) */
+    unreadCount?: number;
 }
 //# sourceMappingURL=index.d.ts.map

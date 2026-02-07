@@ -124,6 +124,13 @@ const bookingSchema = new mongoose_1.Schema({
                 type: Number,
                 required: true,
             },
+            addedAt: {
+                type: Date,
+                default: Date.now,
+            },
+            deliveredAt: {
+                type: Date,
+            },
         },
     ],
     proofImage: {

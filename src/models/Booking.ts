@@ -92,6 +92,13 @@ const bookingSchema = new Schema<IBooking>(
           type: Number,
           required: true,
         },
+        addedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        deliveredAt: {
+          type: Date,
+        },
       },
     ],
     proofImage: {
