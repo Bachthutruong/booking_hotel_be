@@ -8,7 +8,7 @@ const auth_1 = require("../middleware/auth");
 const notificationController_1 = require("../controllers/notificationController");
 const router = express_1.default.Router();
 router.use(auth_1.protect);
-router.use((0, auth_1.authorize)('admin'));
+router.use((0, auth_1.authorize)('admin', 'staff'));
 router.get('/', notificationController_1.getNotifications);
 router.patch('/read-all', notificationController_1.markAllAsRead);
 router.patch('/:id/read', notificationController_1.markAsRead);

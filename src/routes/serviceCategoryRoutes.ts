@@ -15,10 +15,10 @@ const router = express.Router();
 router.get('/', getServiceCategories);
 router.get('/:id', getServiceCategoryById);
 
-// Admin
-router.get('/admin/all', protect, authorize('admin'), getAllServiceCategories);
-router.post('/', protect, authorize('admin'), createServiceCategory);
-router.put('/:id', protect, authorize('admin'), updateServiceCategory);
+// Admin & staff (create/update); only admin can delete
+router.get('/admin/all', protect, authorize('admin', 'staff'), getAllServiceCategories);
+router.post('/', protect, authorize('admin', 'staff'), createServiceCategory);
+router.put('/:id', protect, authorize('admin', 'staff'), updateServiceCategory);
 router.delete('/:id', protect, authorize('admin'), deleteServiceCategory);
 
 export default router;

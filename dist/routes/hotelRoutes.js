@@ -21,13 +21,13 @@ router.get('/:hotelId/reviews', reviewController_1.getReviews);
 router.use(auth_1.protect);
 // User can create review
 router.post('/:hotelId/reviews', reviewController_1.createReview);
-// Admin only routes
-router.post('/', (0, auth_1.authorize)('admin'), hotelController_1.createHotel);
+// Admin & staff (create/update); only admin can delete
+router.post('/', (0, auth_1.authorize)('admin', 'staff'), hotelController_1.createHotel);
 router.post('/recalculate-prices', (0, auth_1.authorize)('admin'), hotelController_1.recalculateAllPriceRanges);
-router.put('/:id', (0, auth_1.authorize)('admin'), hotelController_1.updateHotel);
+router.put('/:id', (0, auth_1.authorize)('admin', 'staff'), hotelController_1.updateHotel);
 router.delete('/:id', (0, auth_1.authorize)('admin'), hotelController_1.deleteHotel);
-router.post('/:id/images', (0, auth_1.authorize)('admin'), cloudinary_1.upload.array('images', 10), hotelController_1.uploadHotelImages);
-// Admin create room
-router.post('/:hotelId/rooms', (0, auth_1.authorize)('admin'), roomController_1.createRoom);
+router.post('/:id/images', (0, auth_1.authorize)('admin', 'staff'), cloudinary_1.upload.array('images', 10), hotelController_1.uploadHotelImages);
+// Admin & staff create room
+router.post('/:hotelId/rooms', (0, auth_1.authorize)('admin', 'staff'), roomController_1.createRoom);
 exports.default = router;
 //# sourceMappingURL=hotelRoutes.js.map

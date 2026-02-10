@@ -9,7 +9,7 @@ export interface IUser extends Document {
   fullName: string;
   phone: string;
   avatar: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'staff';
   isActive: boolean;
   isEmailVerified: boolean;
   emailVerificationCode?: string;
@@ -74,7 +74,7 @@ export interface IRoom extends Document {
 
 // Booking Types
 export type BookingStatus = 'pending' | 'pending_deposit' | 'awaiting_approval' | 'confirmed' | 'cancelled' | 'completed';
-export type PaymentStatus = 'pending' | 'paid' | 'refunded';
+export type PaymentStatus = 'pending' | 'deposit_paid' | 'paid' | 'refunded';
 
 export interface IBookingService {
   service: Types.ObjectId;
@@ -85,7 +85,38 @@ export interface IBookingService {
 }
 
 export type PaymentMethod = 'bank_transfer' | 'wallet' | 'cash';
-export type PaymentOption = 'use_bonus' | 'use_main_only';
+export type PaymentOption = 'use_bonus' | 'use_main_only' | 'use_cash';
+
+/** Chi tiết giá từng ngày (áp dụng giá đặc biệt). */
+export interface IRoomPriceBreakdownItem {
+  date: Date;
+  price: number;
+  label?: string; // e.g. 'Cuối tuần', 'Ngày lễ', 'Giá gốc'
+  basePrice?: number; // Giá gốc/đêm
+  modifierType?: 'percentage' | 'fixed'; // Cách tăng: theo % hay số tiền
+  modifierValue?: number; // Giá trị (phần trăm hoặc VND)
+}
+
+// Room Special Price (giá đặc biệt theo ngày / cuối tuần)
+export type SpecialPriceRuleType = 'date_range' | 'weekend';
+export type SpecialPriceModifierType = 'percentage' | 'fixed';
+
+export interface IRoomSpecialPrice extends Document {
+  _id: Types.ObjectId;
+  name: string;
+  /** Áp dụng cho các phòng (có thể nhiều phòng). */
+  rooms: Types.ObjectId[];
+  type: SpecialPriceRuleType;
+  /** Cho type date_range: ngày bắt đầu (hoặc 1 ngày nếu startDate = endDate). */
+  startDate?: Date;
+  endDate?: Date;
+  /** Tăng giá: percentage (%) hoặc fixed (VND). */
+  modifierType: SpecialPriceModifierType;
+  modifierValue: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface IBooking extends Document {
   _id: Types.ObjectId;
@@ -101,12 +132,18 @@ export interface IBooking extends Document {
     children: number;
   };
   roomPrice: number;
+  /** Chi tiết giá từng ngày (khi có giá đặc biệt). */
+  roomPriceBreakdown?: IRoomPriceBreakdownItem[];
   servicePrice: number;
   totalPrice: number;
   estimatedPrice: number;
   finalPrice?: number;
   paidFromWallet?: number;
   paidFromBonus?: number;
+  /** Số tiền cọc yêu cầu (tính từ deposit_config). */
+  depositAmount?: number;
+  /** Số tiền cọc đã thanh toán (ví hoặc CK sau khi admin duyệt). */
+  paidDepositAmount?: number;
   services: IBookingService[];
   proofImage?: string;
   status: BookingStatus;

@@ -7,6 +7,7 @@ export declare const getMyDepositRequests: (req: AuthRequest, res: Response<ApiR
 export declare const createWithdrawalRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
 export declare const getMyWithdrawalRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
 export declare const getAllDepositRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
+export declare const getDepositDetail: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
 export declare const processDepositRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;
 export declare const getAllWithdrawalRequests: (req: AuthRequest, res: Response<ApiResponse>) => Promise<void>;
 export declare const processWithdrawalRequest: (req: AuthRequest, res: Response<ApiResponse>) => Promise<Response<ApiResponse<any>, Record<string, any>> | undefined>;

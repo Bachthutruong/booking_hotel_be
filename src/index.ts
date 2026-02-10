@@ -5,12 +5,13 @@ import dotenv from 'dotenv';
 import connectDB from './config/database';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { ensureCompoundUniqueOnly } from './models/User';
 
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database, then ensure User only has compound (email+phone) unique
+connectDB().then(() => ensureCompoundUniqueOnly()).catch((err) => console.error('DB init:', err));
 
 const app = express();
 

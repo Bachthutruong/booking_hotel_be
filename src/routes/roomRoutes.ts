@@ -15,11 +15,11 @@ const router = Router();
 router.get('/availability', checkAvailability);
 router.get('/:id', getRoom);
 
-// Protected admin routes
-router.use(protect, authorize('admin'));
+// Protected: admin & staff (update/upload); only admin can delete
+router.use(protect);
 
-router.put('/:id', updateRoom);
-router.delete('/:id', deleteRoom);
-router.post('/:id/images', upload.array('images', 10), uploadRoomImages);
+router.put('/:id', authorize('admin', 'staff'), updateRoom);
+router.delete('/:id', authorize('admin'), deleteRoom);
+router.post('/:id/images', authorize('admin', 'staff'), upload.array('images', 10), uploadRoomImages);
 
 export default router;

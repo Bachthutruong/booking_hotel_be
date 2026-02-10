@@ -14,6 +14,7 @@ import walletRoutes from './walletRoutes';
 import roomCategoryRoutes from './roomCategoryRoutes';
 import promotionRoutes from './promotionRoutes';
 import notificationRoutes from './notificationRoutes';
+import specialPriceRoutes from './specialPriceRoutes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/wallet', walletRoutes);
 router.use('/categories', roomCategoryRoutes);
 router.use('/promotions', promotionRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/special-prices', specialPriceRoutes);
 
 export default router;

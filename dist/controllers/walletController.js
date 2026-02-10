@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getWithdrawalDetail = exports.confirmWithdrawal = exports.getWithdrawalByToken = exports.adminCreateWithdrawal = exports.adminCreateDeposit = exports.getAllTransactions = exports.getUserWalletDetails = exports.getAllUsersWallet = exports.processWithdrawalRequest = exports.getAllWithdrawalRequests = exports.processDepositRequest = exports.getAllDepositRequests = exports.getMyWithdrawalRequests = exports.createWithdrawalRequest = exports.getMyDepositRequests = exports.createDepositRequest = exports.getTransactionHistory = exports.getWalletBalance = void 0;
+exports.getWithdrawalDetail = exports.confirmWithdrawal = exports.getWithdrawalByToken = exports.adminCreateWithdrawal = exports.adminCreateDeposit = exports.getAllTransactions = exports.getUserWalletDetails = exports.getAllUsersWallet = exports.processWithdrawalRequest = exports.getAllWithdrawalRequests = exports.processDepositRequest = exports.getDepositDetail = exports.getAllDepositRequests = exports.getMyWithdrawalRequests = exports.createWithdrawalRequest = exports.getMyDepositRequests = exports.createDepositRequest = exports.getTransactionHistory = exports.getWalletBalance = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = __importDefault(require("../models/User"));
 const WalletTransaction_1 = __importDefault(require("../models/WalletTransaction"));
@@ -353,6 +353,23 @@ const getAllDepositRequests = async (req, res) => {
     }
 };
 exports.getAllDepositRequests = getAllDepositRequests;
+// ADMIN: Get single deposit request by id
+const getDepositDetail = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deposit = await DepositRequest_1.default.findById(id)
+            .populate('user', 'fullName email phone avatar')
+            .populate('approvedBy', 'fullName');
+        if (!deposit) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu nạp tiền' });
+        }
+        res.json({ success: true, data: deposit });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+exports.getDepositDetail = getDepositDetail;
 // ADMIN: Approve/Reject deposit request
 const processDepositRequest = async (req, res) => {
     const session = await mongoose_1.default.startSession();

@@ -43,19 +43,19 @@ router.use(protect);
 // User can create review
 router.post('/:hotelId/reviews', createReview);
 
-// Admin only routes
-router.post('/', authorize('admin'), createHotel);
+// Admin & staff (create/update); only admin can delete
+router.post('/', authorize('admin', 'staff'), createHotel);
 router.post('/recalculate-prices', authorize('admin'), recalculateAllPriceRanges);
-router.put('/:id', authorize('admin'), updateHotel);
+router.put('/:id', authorize('admin', 'staff'), updateHotel);
 router.delete('/:id', authorize('admin'), deleteHotel);
 router.post(
   '/:id/images',
-  authorize('admin'),
+  authorize('admin', 'staff'),
   upload.array('images', 10),
   uploadHotelImages
 );
 
-// Admin create room
-router.post('/:hotelId/rooms', authorize('admin'), createRoom);
+// Admin & staff create room
+router.post('/:hotelId/rooms', authorize('admin', 'staff'), createRoom);
 
 export default router;

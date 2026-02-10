@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   getUsers,
   getUser,
+  createUser,
+  getUserAuditLogs,
   updateUser,
   deleteUser,
   uploadAvatar,
@@ -13,7 +15,9 @@ const router = Router();
 
 router.use(protect);
 
-router.get('/', authorize('admin'), getUsers);
+router.get('/', authorize('admin', 'staff'), getUsers);
+router.get('/audit-logs', authorize('admin'), getUserAuditLogs);
+router.post('/', authorize('admin'), createUser);
 router.get('/:id', getUser);
 router.put('/:id', updateUser);
 router.delete('/:id', authorize('admin'), deleteUser);

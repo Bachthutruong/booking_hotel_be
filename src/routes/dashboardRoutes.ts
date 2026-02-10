@@ -10,7 +10,7 @@ import { protect, authorize } from '../middleware/auth';
 
 const router = Router();
 
-router.use(protect, authorize('admin'));
+router.use(protect, authorize('admin', 'staff'));
 
 router.get('/stats', getStats);
 router.get('/revenue', getRevenueByMonth);

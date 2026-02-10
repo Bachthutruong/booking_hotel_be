@@ -1,7 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
-import { User } from '../models';
+import { User, UserAuditLog } from '../models';
 import { AuthRequest } from '../types';
 import { getPagination, createPaginationResponse } from '../utils/helpers';
+
+async function logUserAudit(
+  action: 'created' | 'updated' | 'deleted',
+  targetUser: { _id: any; email?: string; fullName?: string; role?: string },
+  performedBy: { _id: any; email?: string; fullName?: string },
+  details?: string,
+  oldData?: Record<string, unknown>,
+  newData?: Record<string, unknown>
+) {
+  await UserAuditLog.create({
+    action,
+    targetUser: targetUser._id,
+    targetUserEmail: targetUser.email,
+    targetUserFullName: targetUser.fullName,
+    targetUserRole: targetUser.role,
+    performedBy: performedBy._id,
+    performedByEmail: performedBy.email,
+    performedByFullName: performedBy.fullName,
+    details,
+    oldData,
+    newData,
+  });
+}
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -40,6 +63,123 @@ export const getUsers = async (
     res.status(200).json({
       success: true,
       data: users,
+      pagination: createPaginationResponse(page, limit, total),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create user (admin, staff, or user) - Admin only
+// @route   POST /api/users
+// @access  Private/Admin
+export const createUser = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, fullName, phone, role, password } = req.body;
+
+    if (!email || !fullName || !phone) {
+      res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ: Email, Họ tên và Số điện thoại',
+      });
+      return;
+    }
+
+    const validRoles = ['user', 'admin', 'staff'];
+    const roleValue = role && validRoles.includes(role) ? role : 'user';
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPhone = String(phone).trim();
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      phone: normalizedPhone,
+    });
+    if (existingUser) {
+      res.status(400).json({
+        success: false,
+        message: 'Email và Số điện thoại này đã được sử dụng.',
+      });
+      return;
+    }
+
+    const createData: any = {
+      email: normalizedEmail,
+      fullName: String(fullName).trim(),
+      phone: normalizedPhone,
+      role: roleValue,
+      isActive: true,
+      isEmailVerified: true,
+    };
+    if (password && String(password).length >= 6) {
+      createData.password = String(password);
+    }
+
+    const user = await User.create(createData);
+
+    await logUserAudit(
+      'created',
+      user,
+      req.user!,
+      `Tạo tài khoản ${roleValue}: ${user.fullName} (${user.email})`,
+      undefined,
+      {
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone,
+        role: user.role,
+      }
+    );
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: 'Đã tạo tài khoản thành công',
+    });
+  } catch (error: any) {
+    if (error.code === 11000) {
+      res.status(400).json({
+        success: false,
+        message: 'Email và Số điện thoại này đã được sử dụng.',
+      });
+      return;
+    }
+    next(error);
+  }
+};
+
+// @desc    Get user audit logs (add/edit/delete) - Admin only
+// @route   GET /api/users/audit-logs
+// @access  Private/Admin
+export const getUserAuditLogs = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { page, limit, skip } = getPagination(req);
+    const { action, targetUserId } = req.query;
+
+    const query: any = {};
+    if (action) query.action = action;
+    if (targetUserId) query.targetUser = targetUserId;
+
+    const [logs, total] = await Promise.all([
+      UserAuditLog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      UserAuditLog.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: logs,
       pagination: createPaginationResponse(page, limit, total),
     });
   } catch (error) {
@@ -88,10 +228,19 @@ export const updateUser = async (
     const userId = req.params.id;
 
     // Check if user can update this profile
-    if (req.user?.role !== 'admin' && req.user?._id.toString() !== userId) {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'staff' && req.user?._id.toString() !== userId) {
       res.status(403).json({
         success: false,
         message: 'Bạn không có quyền cập nhật thông tin này',
+      });
+      return;
+    }
+
+    const oldUser = await User.findById(userId).lean();
+    if (!oldUser) {
+      res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng',
       });
       return;
     }
@@ -101,7 +250,7 @@ export const updateUser = async (
     if (phone !== undefined) updateData.phone = phone;
     if (avatar !== undefined) updateData.avatar = avatar;
 
-    // Admin can update role and isActive
+    // Only admin can update role and isActive
     if (req.user?.role === 'admin') {
       if (req.body.role) updateData.role = req.body.role;
       if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
@@ -120,6 +269,18 @@ export const updateUser = async (
       return;
     }
 
+    // Log audit when admin updates (role/isActive or any field)
+    if (req.user?.role === 'admin' && (Object.keys(updateData).length > 0)) {
+      await logUserAudit(
+        'updated',
+        user,
+        req.user,
+        `Cập nhật thông tin: ${user.fullName}`,
+        { fullName: oldUser.fullName, phone: oldUser.phone, role: oldUser.role, isActive: oldUser.isActive },
+        { fullName: user.fullName, phone: user.phone, role: user.role, isActive: user.isActive }
+      );
+    }
+
     res.status(200).json({
       success: true,
       data: user,
@@ -129,11 +290,11 @@ export const updateUser = async (
   }
 };
 
-// @desc    Delete user
+// @desc    Delete user (soft: deactivate) - Admin only
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 export const deleteUser = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -147,6 +308,15 @@ export const deleteUser = async (
       });
       return;
     }
+
+    await logUserAudit(
+      'deleted',
+      user,
+      req.user!,
+      `Vô hiệu hóa tài khoản: ${user.fullName} (${user.email})`,
+      { fullName: user.fullName, email: user.email, role: user.role, isActive: user.isActive },
+      { isActive: false }
+    );
 
     // Soft delete - just deactivate
     user.isActive = false;

@@ -1,4 +1,5 @@
 export { default as User } from './User';
+export { default as UserAuditLog } from './UserAuditLog';
 export { default as Hotel } from './Hotel';
 export { default as Room } from './Room';
 export { default as Booking } from './Booking';
@@ -12,3 +13,4 @@ export { default as DepositRequest } from './DepositRequest';
 export { default as WithdrawalRequest } from './WithdrawalRequest';
 export { default as RoomCategory } from './RoomCategory';
 export { default as PromotionConfig } from './PromotionConfig';
+export { default as RoomSpecialPrice } from './RoomSpecialPrice';

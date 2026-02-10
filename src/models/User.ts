@@ -29,7 +29,7 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['user', 'admin'],
+      enum: ['user', 'admin', 'staff'],
       default: 'user',
     },
     isActive: {
@@ -87,5 +87,22 @@ userSchema.index({ fullName: 'text', email: 'text', phone: 'text' });
 userSchema.index({ createdAt: -1 });
 
 const User = mongoose.model<IUser>('User', userSchema);
+
+/** Gỡ unique index chỉ trên email (nếu có) để cho phép cùng email với số điện thoại khác = tài khoản mới. */
+export async function ensureCompoundUniqueOnly(): Promise<void> {
+  try {
+    const indexes = await User.collection.indexes();
+    const emailOnlyUnique = indexes.find(
+      (idx) =>
+        idx.key && (idx.key as any).email === 1 && (idx.key as any).phone === undefined && idx.unique
+    );
+    if (emailOnlyUnique && emailOnlyUnique.name) {
+      await User.collection.dropIndex(emailOnlyUnique.name);
+      console.log('[User] Dropped email-only unique index:', emailOnlyUnique.name);
+    }
+  } catch (e) {
+    // Ignore (e.g. index not found)
+  }
+}
 
 export default User;

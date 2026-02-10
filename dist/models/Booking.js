@@ -81,6 +81,16 @@ const bookingSchema = new mongoose_1.Schema({
         default: 0,
         min: 0,
     },
+    roomPriceBreakdown: [
+        {
+            date: { type: Date, required: true },
+            price: { type: Number, required: true, min: 0 },
+            label: { type: String, default: '' },
+            basePrice: { type: Number, min: 0 },
+            modifierType: { type: String, enum: ['percentage', 'fixed'] },
+            modifierValue: { type: Number },
+        },
+    ],
     servicePrice: {
         type: Number,
         default: 0,
@@ -106,6 +116,18 @@ const bookingSchema = new mongoose_1.Schema({
         min: 0,
     },
     paidFromBonus: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    /** Số tiền cọc yêu cầu (tính từ deposit_config lúc tạo đơn). */
+    depositAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    /** Số tiền cọc đã thanh toán (ví hoặc chuyển khoản sau khi admin duyệt). */
+    paidDepositAmount: {
         type: Number,
         default: 0,
         min: 0,
@@ -143,7 +165,7 @@ const bookingSchema = new mongoose_1.Schema({
     },
     paymentStatus: {
         type: String,
-        enum: ['pending', 'paid', 'refunded'],
+        enum: ['pending', 'deposit_paid', 'paid', 'refunded'],
         default: 'pending',
     },
     paymentMethod: {
@@ -153,7 +175,7 @@ const bookingSchema = new mongoose_1.Schema({
     },
     paymentOption: {
         type: String,
-        enum: ['use_bonus', 'use_main_only'],
+        enum: ['use_bonus', 'use_main_only', 'use_cash'],
     },
     invoiceNumber: {
         type: String,

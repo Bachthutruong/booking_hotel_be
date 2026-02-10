@@ -20,6 +20,7 @@ router.post('/withdrawal/confirm/:token', auth_1.protect, walletController_1.con
 router.get('/withdrawal/:id', auth_1.protect, walletController_1.getWithdrawalDetail);
 // Admin routes
 router.get('/admin/deposits', auth_1.protect, (0, auth_1.authorize)('admin'), walletController_1.getAllDepositRequests);
+router.get('/admin/deposits/:id', auth_1.protect, (0, auth_1.authorize)('admin'), walletController_1.getDepositDetail);
 router.put('/admin/deposits/:id', auth_1.protect, (0, auth_1.authorize)('admin'), walletController_1.processDepositRequest);
 router.post('/admin/deposits/create', auth_1.protect, (0, auth_1.authorize)('admin'), walletController_1.adminCreateDeposit);
 router.get('/admin/withdrawals', auth_1.protect, (0, auth_1.authorize)('admin'), walletController_1.getAllWithdrawalRequests);

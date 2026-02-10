@@ -16,11 +16,11 @@ const router = express.Router();
 router.get('/active', getActivePromotions);
 router.get('/calculate', getPromotionForAmount);
 
-// Admin routes
-router.get('/', protect, authorize('admin'), getAllPromotions);
-router.get('/:id', protect, authorize('admin'), getPromotionById);
-router.post('/', protect, authorize('admin'), createPromotion);
-router.put('/:id', protect, authorize('admin'), updatePromotion);
+// Admin & staff (read/create/update); only admin can delete
+router.get('/', protect, authorize('admin', 'staff'), getAllPromotions);
+router.get('/:id', protect, authorize('admin', 'staff'), getPromotionById);
+router.post('/', protect, authorize('admin', 'staff'), createPromotion);
+router.put('/:id', protect, authorize('admin', 'staff'), updatePromotion);
 router.delete('/:id', protect, authorize('admin'), deletePromotion);
 
 export default router;

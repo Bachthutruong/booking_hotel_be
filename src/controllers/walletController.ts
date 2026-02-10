@@ -375,6 +375,22 @@ export const getAllDepositRequests = async (req: AuthRequest, res: Response<ApiR
   }
 };
 
+// ADMIN: Get single deposit request by id
+export const getDepositDetail = async (req: AuthRequest, res: Response<ApiResponse>) => {
+  try {
+    const { id } = req.params;
+    const deposit = await DepositRequest.findById(id)
+      .populate('user', 'fullName email phone avatar')
+      .populate('approvedBy', 'fullName');
+    if (!deposit) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu nạp tiền' });
+    }
+    res.json({ success: true, data: deposit });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // ADMIN: Approve/Reject deposit request
 export const processDepositRequest = async (req: AuthRequest, res: Response<ApiResponse>) => {
   const session = await mongoose.startSession();

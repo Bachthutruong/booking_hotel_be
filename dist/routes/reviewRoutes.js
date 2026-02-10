@@ -6,9 +6,9 @@ const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 router.use(auth_1.protect);
 router.put('/:id', reviewController_1.updateReview);
-router.delete('/:id', reviewController_1.deleteReview);
-// Admin only
-router.get('/', (0, auth_1.authorize)('admin'), reviewController_1.getAllReviews);
-router.put('/:id/approve', (0, auth_1.authorize)('admin'), reviewController_1.approveReview);
+router.delete('/:id', (0, auth_1.authorize)('admin'), reviewController_1.deleteReview);
+// Admin & staff
+router.get('/', (0, auth_1.authorize)('admin', 'staff'), reviewController_1.getAllReviews);
+router.put('/:id/approve', (0, auth_1.authorize)('admin', 'staff'), reviewController_1.approveReview);
 exports.default = router;
 //# sourceMappingURL=reviewRoutes.js.map

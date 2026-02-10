@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ensureCompoundUniqueOnly = ensureCompoundUniqueOnly;
 const mongoose_1 = __importStar(require("mongoose"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const userSchema = new mongoose_1.Schema({
@@ -64,7 +65,7 @@ const userSchema = new mongoose_1.Schema({
     },
     role: {
         type: String,
-        enum: ['user', 'admin'],
+        enum: ['user', 'admin', 'staff'],
         default: 'user',
     },
     isActive: {
@@ -115,5 +116,19 @@ userSchema.index({ role: 1 });
 userSchema.index({ fullName: 'text', email: 'text', phone: 'text' });
 userSchema.index({ createdAt: -1 });
 const User = mongoose_1.default.model('User', userSchema);
+/** Gỡ unique index chỉ trên email (nếu có) để cho phép cùng email với số điện thoại khác = tài khoản mới. */
+async function ensureCompoundUniqueOnly() {
+    try {
+        const indexes = await User.collection.indexes();
+        const emailOnlyUnique = indexes.find((idx) => idx.key && idx.key.email === 1 && idx.key.phone === undefined && idx.unique);
+        if (emailOnlyUnique && emailOnlyUnique.name) {
+            await User.collection.dropIndex(emailOnlyUnique.name);
+            console.log('[User] Dropped email-only unique index:', emailOnlyUnique.name);
+        }
+    }
+    catch (e) {
+        // Ignore (e.g. index not found)
+    }
+}
 exports.default = User;
 //# sourceMappingURL=User.js.map

@@ -10,10 +10,11 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const database_1 = __importDefault(require("./config/database"));
 const routes_1 = __importDefault(require("./routes"));
 const errorHandler_1 = require("./middleware/errorHandler");
+const User_1 = require("./models/User");
 // Load env vars
 dotenv_1.default.config();
-// Connect to database
-(0, database_1.default)();
+// Connect to database, then ensure User only has compound (email+phone) unique
+(0, database_1.default)().then(() => (0, User_1.ensureCompoundUniqueOnly)()).catch((err) => console.error('DB init:', err));
 const app = (0, express_1.default)();
 // CORS Configuration
 app.use((0, cors_1.default)({

@@ -29,7 +29,7 @@ router.post('/', optionalAuth, createBooking);
 
 // Các route sau yêu cầu đăng nhập
 router.get('/', protect, getBookings);
-router.post('/admin', protect, authorize('admin'), createBookingAdmin);
+router.post('/admin', protect, authorize('admin', 'staff'), createBookingAdmin);
 
 router.get('/:id', protect, getBooking);
 router.get('/:id/bill', protect, getBookingBill);
@@ -39,15 +39,15 @@ router.put('/:id/proof', protect, uploadPaymentProof);
 // Upload minh chứng bằng file — không cần đăng nhập (khách có link thanh toán)
 router.post('/:id/upload-proof', upload.single('image'), uploadProofFile);
 router.post('/:id/services', protect, addServiceToBooking);
-router.patch('/:id/services/deliver', protect, authorize('admin'), markServiceDelivered);
-router.patch('/:id/services/deliver-all', protect, authorize('admin'), markAllServicesDelivered);
+router.patch('/:id/services/deliver', protect, authorize('admin', 'staff'), markServiceDelivered);
+router.patch('/:id/services/deliver-all', protect, authorize('admin', 'staff'), markAllServicesDelivered);
 router.post('/:id/pay-wallet', protect, payWithWallet);
 router.post('/:id/pay-deposit-wallet', protect, payDepositFromWallet);
 
-// Admin only
-router.put('/:id/status', protect, authorize('admin'), updateBookingStatus);
-router.put('/:id/approve', protect, authorize('admin'), approveBooking);
-router.put('/:id/checkin', protect, authorize('admin'), checkInBooking);
-router.post('/:id/checkout', protect, authorize('admin'), checkoutBooking);
+// Admin & staff
+router.put('/:id/status', protect, authorize('admin', 'staff'), updateBookingStatus);
+router.put('/:id/approve', protect, authorize('admin', 'staff'), approveBooking);
+router.put('/:id/checkin', protect, authorize('admin', 'staff'), checkInBooking);
+router.post('/:id/checkout', protect, authorize('admin', 'staff'), checkoutBooking);
 
 export default router;

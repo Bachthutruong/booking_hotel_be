@@ -19,8 +19,17 @@ export const errorHandler = (
   // Mongoose duplicate key error
   if (err.code === 11000) {
     statusCode = 400;
-    const field = Object.keys(err.keyValue || {})[0];
-    message = `${field === 'email' ? 'Email' : field} đã tồn tại`;
+    const keys = Object.keys(err.keyValue || {});
+    if (keys.includes('email') && keys.includes('phone')) {
+      message = 'Email và Số điện thoại này đã được sử dụng.';
+    } else if (keys.includes('email')) {
+      message = 'Email đã tồn tại.';
+    } else if (keys.includes('phone')) {
+      message = 'Số điện thoại đã tồn tại.';
+    } else {
+      const field = keys[0];
+      message = `${field === 'email' ? 'Email' : field} đã tồn tại.`;
+    }
   }
 
   // Mongoose validation error

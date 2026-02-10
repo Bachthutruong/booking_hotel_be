@@ -5,7 +5,7 @@ import { getNotifications, markAsRead, markAllAsRead } from '../controllers/noti
 const router = express.Router();
 
 router.use(protect);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'staff'));
 
 router.get('/', getNotifications);
 router.patch('/read-all', markAllAsRead);

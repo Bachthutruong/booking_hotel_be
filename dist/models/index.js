@@ -3,9 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PromotionConfig = exports.RoomCategory = exports.WithdrawalRequest = exports.DepositRequest = exports.WalletTransaction = exports.SystemConfig = exports.Notification = exports.ServiceCategory = exports.Service = exports.Review = exports.Booking = exports.Room = exports.Hotel = exports.User = void 0;
+exports.RoomSpecialPrice = exports.PromotionConfig = exports.RoomCategory = exports.WithdrawalRequest = exports.DepositRequest = exports.WalletTransaction = exports.SystemConfig = exports.Notification = exports.ServiceCategory = exports.Service = exports.Review = exports.Booking = exports.Room = exports.Hotel = exports.UserAuditLog = exports.User = void 0;
 var User_1 = require("./User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return __importDefault(User_1).default; } });
+var UserAuditLog_1 = require("./UserAuditLog");
+Object.defineProperty(exports, "UserAuditLog", { enumerable: true, get: function () { return __importDefault(UserAuditLog_1).default; } });
 var Hotel_1 = require("./Hotel");
 Object.defineProperty(exports, "Hotel", { enumerable: true, get: function () { return __importDefault(Hotel_1).default; } });
 var Room_1 = require("./Room");
@@ -32,4 +34,6 @@ var RoomCategory_1 = require("./RoomCategory");
 Object.defineProperty(exports, "RoomCategory", { enumerable: true, get: function () { return __importDefault(RoomCategory_1).default; } });
 var PromotionConfig_1 = require("./PromotionConfig");
 Object.defineProperty(exports, "PromotionConfig", { enumerable: true, get: function () { return __importDefault(PromotionConfig_1).default; } });
+var RoomSpecialPrice_1 = require("./RoomSpecialPrice");
+Object.defineProperty(exports, "RoomSpecialPrice", { enumerable: true, get: function () { return __importDefault(RoomSpecialPrice_1).default; } });
 //# sourceMappingURL=index.js.map

@@ -3,7 +3,43 @@ import mongoose from 'mongoose';
 import { Booking, Room, Service, User, WalletTransaction, Notification, SystemConfig } from '../models';
 import { AuthRequest, IBookingService } from '../types';
 import { getPagination, createPaginationResponse, calculateNights } from '../utils/helpers';
+import { computeRoomPriceBreakdown } from '../utils/specialPrice';
 import { generateToken } from '../utils/jwt';
+
+/** Tính số tiền cọc theo deposit_config. */
+async function getDepositAmountForTotal(totalPrice: number): Promise<number> {
+  const depositConfig = await SystemConfig.findOne({ key: 'deposit_config' }).lean();
+  if (!depositConfig?.value) return totalPrice;
+  const cfg = depositConfig.value as { type?: string; value?: number };
+  if (cfg.type === 'percentage' && typeof cfg.value === 'number') {
+    return Math.round((totalPrice * cfg.value) / 100);
+  }
+  if (cfg.type === 'fixed' && typeof cfg.value === 'number') {
+    return Math.min(cfg.value, totalPrice);
+  }
+  return totalPrice;
+}
+
+/** Điền depositAmount/paidDepositAmount (cho đơn đã xác nhận nhưng thiếu do tạo trước khi thêm field). Cập nhật cả object trả về và lưu vào DB. */
+async function fillDepositDisplayFields(booking: any): Promise<void> {
+  if (!booking || booking.status !== 'confirmed') return;
+  const paymentStatus = booking.paymentStatus;
+  if (paymentStatus !== 'paid' && paymentStatus !== 'deposit_paid') return;
+  const hasProof = !!(booking.proofImage || (booking.paidFromWallet && Number(booking.paidFromWallet) > 0));
+  if (!hasProof) return;
+  const currentPaid = Number(booking.paidDepositAmount) || 0;
+  if (currentPaid > 0) return;
+  const totalPrice = Number(booking.totalPrice) || 0;
+  const depositRequired =
+    (Number(booking.depositAmount) || 0) > 0
+      ? Number(booking.depositAmount)
+      : await getDepositAmountForTotal(totalPrice);
+  booking.depositAmount = depositRequired;
+  booking.paidDepositAmount = depositRequired;
+  await Booking.findByIdAndUpdate(booking._id, {
+    $set: { depositAmount: depositRequired, paidDepositAmount: depositRequired },
+  });
+}
 
 // @desc    Get all bookings
 // @route   GET /api/bookings
@@ -19,8 +55,8 @@ export const getBookings = async (
 
     const query: any = {};
 
-    // If not admin, only show user's own bookings
-    if (req.user?.role !== 'admin') {
+    // Admin và staff xem tất cả đơn; user chỉ xem đơn của mình
+    if (req.user?.role !== 'admin' && req.user?.role !== 'staff') {
       query.user = req.user?._id;
     }
 
@@ -83,6 +119,10 @@ export const getBookings = async (
       Booking.countDocuments(query),
     ]);
 
+    for (const b of bookings) {
+      await fillDepositDisplayFields(b);
+    }
+
     res.status(200).json({
       success: true,
       data: bookings,
@@ -128,6 +168,8 @@ export const getBooking = async (
       });
       return;
     }
+
+    await fillDepositDisplayFields(booking);
 
     res.status(200).json({
       success: true,
@@ -187,17 +229,36 @@ export const createBooking = async (
         phone: normalizedPhone,
       };
 
+      // Chỉ dùng tài khoản có sẵn khi trùng CẢ email VÀ phone. Chỉ trùng 1 trong 2 thì tạo mới.
       let user = await User.findOne({ email: normalizedEmail, phone: normalizedPhone });
       if (!user) {
-        user = await User.create({
-          email: normalizedEmail,
-          fullName: contactInfo.fullName,
-          phone: normalizedPhone,
-          isEmailVerified: true,
-          isActive: true,
-          role: 'user',
-        });
-        createdNewUser = user;
+        try {
+          user = await User.create({
+            email: normalizedEmail,
+            fullName: contactInfo.fullName,
+            phone: normalizedPhone,
+            isEmailVerified: true,
+            isActive: true,
+            role: 'user',
+          });
+          createdNewUser = user;
+        } catch (createErr: any) {
+          if (createErr.code === 11000) {
+            // Race: có thể request khác vừa tạo (email, phone) trùng. Thử lấy lại.
+            const existing = await User.findOne({ email: normalizedEmail, phone: normalizedPhone });
+            if (existing) {
+              user = existing;
+            } else {
+              res.status(400).json({
+                success: false,
+                message: 'Thông tin liên hệ này đã được sử dụng. Vui lòng dùng đúng cặp Email và Số điện thoại đã đăng ký, hoặc thông tin mới.',
+              });
+              return;
+            }
+          } else {
+            throw createErr;
+          }
+        }
       }
       userId = user._id;
     }
@@ -273,9 +334,15 @@ export const createBooking = async (
       return;
     }
 
-    // Calculate total price
-    const nights = calculateNights(checkInDate, checkOutDate);
-    let totalPrice = room.price * nights;
+    // Calculate room price (with special price breakdown)
+    const { breakdown: roomPriceBreakdown, totalRoomPrice: roomPrice } = await computeRoomPriceBreakdown(
+      room._id,
+      checkInDate,
+      checkOutDate,
+      room.price
+    );
+
+    let totalPrice = roomPrice;
     const bookingServices: IBookingService[] = [];
 
     // Process services if any
@@ -296,8 +363,6 @@ export const createBooking = async (
       }
     }
 
-    // Calculate room price and service price separately
-    const roomPrice = room.price * nights;
     const servicePrice = bookingServices.reduce((sum, s) => sum + s.price * s.quantity, 0);
 
     // Create booking
@@ -309,6 +374,14 @@ export const createBooking = async (
       checkOut: checkOutDate,
       guests,
       roomPrice,
+      roomPriceBreakdown: roomPriceBreakdown.map((b) => ({
+        date: b.date,
+        price: b.price,
+        label: b.label || '',
+        basePrice: b.basePrice,
+        modifierType: b.modifierType,
+        modifierValue: b.modifierValue,
+      })),
       servicePrice,
       totalPrice,
       estimatedPrice: totalPrice,
@@ -320,10 +393,15 @@ export const createBooking = async (
       paymentMethod: 'bank_transfer',
     });
 
+    const depositAmountForBooking = await getDepositAmountForTotal(totalPrice);
+    booking.depositAmount = depositAmountForBooking;
+    await booking.save();
+
     const populatedBooking = await Booking.findById(booking._id)
       .populate('hotel', 'name address city')
       .populate('room', 'name type price')
-      .populate('services.service', 'name price');
+      .populate('services.service', 'name price')
+      .lean();
 
     // Thông báo cho admin khi đặt phòng có kèm dịch vụ
     if (bookingServices.length > 0) {
@@ -420,24 +498,40 @@ export const createBookingAdmin = async (
         phone: normalizedPhone,
       };
 
+      // Chỉ dùng tài khoản có sẵn khi trùng CẢ email VÀ phone. Chỉ trùng 1 trong 2 thì tạo mới.
       let user = await User.findOne({ email: normalizedEmail, phone: normalizedPhone });
       if (!user) {
-        user = await User.create({
-          email: normalizedEmail,
-          fullName: contactInfo.fullName,
-          phone: normalizedPhone,
-          isEmailVerified: true,
-          isActive: true,
-          role: 'user',
-        });
-      } else {
-        // Cập nhật fullName nếu khác
-        if (user.fullName !== contactInfo.fullName) {
-          user.fullName = contactInfo.fullName;
-          await user.save();
+        try {
+          user = await User.create({
+            email: normalizedEmail,
+            fullName: contactInfo.fullName,
+            phone: normalizedPhone,
+            isEmailVerified: true,
+            isActive: true,
+            role: 'user',
+          });
+        } catch (createErr: any) {
+          if (createErr.code === 11000) {
+            const existing = await User.findOne({ email: normalizedEmail, phone: normalizedPhone });
+            if (existing) {
+              user = existing;
+            } else {
+              res.status(400).json({
+                success: false,
+                message: 'Thông tin liên hệ này đã được sử dụng. Vui lòng dùng đúng cặp Email và Số điện thoại đã đăng ký, hoặc thông tin mới.',
+              });
+              return;
+            }
+          } else {
+            throw createErr;
+          }
         }
       }
-      userId = user._id as mongoose.Types.ObjectId;
+      if (user && user.fullName !== contactInfo.fullName) {
+        user.fullName = contactInfo.fullName;
+        await user.save();
+      }
+      userId = user!._id as mongoose.Types.ObjectId;
     }
 
     // Validate dates
@@ -458,9 +552,14 @@ export const createBookingAdmin = async (
       return;
     }
 
-    // Calculate total price breakdown
-    const nights = calculateNights(checkInDate, checkOutDate);
-    const roomPrice = room.price * nights;
+    // Calculate room price (with special price breakdown)
+    const { breakdown: roomPriceBreakdown, totalRoomPrice: roomPrice } = await computeRoomPriceBreakdown(
+      room._id,
+      checkInDate,
+      checkOutDate,
+      room.price
+    );
+
     let servicePrice = 0;
     const bookingServices: IBookingService[] = [];
 
@@ -493,6 +592,14 @@ export const createBookingAdmin = async (
       checkOut: checkOutDate,
       guests,
       roomPrice,
+      roomPriceBreakdown: roomPriceBreakdown.map((b) => ({
+        date: b.date,
+        price: b.price,
+        label: b.label || '',
+        basePrice: b.basePrice,
+        modifierType: b.modifierType,
+        modifierValue: b.modifierValue,
+      })),
       servicePrice,
       totalPrice,
       estimatedPrice: totalPrice,
@@ -502,6 +609,10 @@ export const createBookingAdmin = async (
       status: status || 'confirmed',
       paymentStatus: paymentStatus || 'pending',
     });
+
+    const depositAmountForBooking = await getDepositAmountForTotal(totalPrice);
+    booking.depositAmount = depositAmountForBooking;
+    await booking.save();
 
     const populatedBooking = await Booking.findById(booking._id)
       .populate('hotel', 'name address city')
@@ -582,10 +693,10 @@ export const uploadProofFile = async (
       return;
     }
 
-    if (booking.status !== 'pending_deposit') {
+    if (!['pending_deposit', 'awaiting_approval'].includes(booking.status)) {
       res.status(400).json({
         success: false,
-        message: 'Chỉ được tải minh chứng khi đơn đang chờ thanh toán cọc.',
+        message: 'Chỉ được tải minh chứng khi đơn đang chờ thanh toán cọc hoặc chờ duyệt.',
       });
       return;
     }
@@ -669,8 +780,10 @@ export const payDepositFromWallet = async (
     await user.save({ session });
 
     booking.paidFromWallet = depositAmount;
+    booking.paidDepositAmount = depositAmount;
     booking.paymentMethod = 'wallet';
-    booking.status = 'awaiting_approval';
+    booking.status = 'confirmed';
+    booking.paymentStatus = 'deposit_paid';
     await booking.save({ session });
 
     await WalletTransaction.create([{
@@ -727,7 +840,13 @@ export const approveBooking = async (
 
     if (action === 'approve') {
       booking.status = 'confirmed';
-      booking.paymentStatus = 'paid';
+      booking.paymentStatus = 'deposit_paid';
+      // Khi duyệt minh chứng chuyển khoản: ghi nhận số tiền cọc đã thanh toán (đúng bằng số tiền cọc yêu cầu)
+      if (booking.proofImage && !(booking.paidDepositAmount && booking.paidDepositAmount > 0)) {
+        booking.paidDepositAmount = booking.depositAmount && booking.depositAmount > 0
+          ? booking.depositAmount
+          : await getDepositAmountForTotal(booking.totalPrice);
+      }
     } else if (action === 'reject') {
       booking.status = 'pending_deposit'; // Ask user to try again
       // Optional: Add rejection reason
@@ -796,7 +915,7 @@ export const cancelBooking = async (
     }
 
     booking.status = 'cancelled';
-    if (booking.paymentStatus === 'paid') {
+    if (booking.paymentStatus === 'paid' || booking.paymentStatus === 'deposit_paid') {
       booking.paymentStatus = 'refunded';
     }
     await booking.save();
@@ -1095,12 +1214,20 @@ export const getBookingBill = async (
       return;
     }
 
+    await fillDepositDisplayFields(booking);
+
     const user = await User.findById(booking.user._id);
     const nights = calculateNights(new Date(booking.checkIn), new Date(booking.checkOut));
     const paidFromWallet = Number(booking.paidFromWallet) || 0;
     const paidFromBonus = Number(booking.paidFromBonus) || 0;
-    const totalPaid = paidFromWallet + paidFromBonus;
+    const paidDeposit = Number(booking.paidDepositAmount) || 0;
     const estimatedTotal = booking.estimatedPrice ?? booking.totalPrice ?? 0;
+    // Tránh cộng cọc 2 lần: cọc trả bằng ví đã nằm trong paidFromWallet → chỉ cộng thêm phần cọc trả bằng CK
+    const totalPaid = Math.min(
+      paidFromWallet + paidFromBonus + Math.max(0, paidDeposit - paidFromWallet),
+      estimatedTotal
+    );
+    // Số tiền cần thanh toán = Tổng − Đã thanh toán (đã thanh toán gồm đã cọc)
     const amountDue = Math.max(0, estimatedTotal - totalPaid);
 
     res.status(200).json({
@@ -1116,6 +1243,7 @@ export const getBookingBill = async (
           userBonusBalance: user?.bonusBalance || 0,
           paidFromWallet,
           paidFromBonus,
+          paidDepositAmount: paidDeposit,
           totalPaid,
           amountDue,
         },
@@ -1138,7 +1266,7 @@ export const checkoutBooking = async (
   session.startTransaction();
 
   try {
-    const { paymentOption, checkoutNote } = req.body; // 'use_bonus' | 'use_main_only'
+    const { paymentOption, checkoutNote } = req.body; // 'use_bonus' | 'use_main_only' | 'use_cash'
     const booking = await Booking.findById(req.params.id).session(session);
 
     if (!booking) {
@@ -1169,15 +1297,32 @@ export const checkoutBooking = async (
     const finalPrice = booking.estimatedPrice ?? booking.totalPrice ?? 0;
     const alreadyPaidFromWallet = Number(booking.paidFromWallet) || 0;
     const alreadyPaidFromBonus = Number(booking.paidFromBonus) || 0;
-    const totalAlreadyPaid = alreadyPaidFromWallet + alreadyPaidFromBonus;
+    const paidDeposit = Number(booking.paidDepositAmount) || 0;
+    // Tránh cộng cọc 2 lần: cọc từ ví đã nằm trong paidFromWallet → chỉ cộng thêm phần cọc trả bằng CK
+    const totalAlreadyPaid = Math.min(
+      alreadyPaidFromWallet + alreadyPaidFromBonus + Math.max(0, paidDeposit - alreadyPaidFromWallet),
+      finalPrice
+    );
     let amountDue = Math.max(0, finalPrice - totalAlreadyPaid);
 
     let paidFromWallet = 0;
     let paidFromBonus = 0;
     let remainingToPay = amountDue;
 
-    if (paymentOption === 'use_bonus') {
-      // First use bonus balance, then main wallet
+    if (paymentOption === 'use_cash') {
+      // Thanh toán tiền mặt: không trừ ví, phần còn lại khách trả tiền mặt tại quầy → coi như đã thanh toán toàn bộ
+      remainingToPay = 0;
+      booking.paymentMethod = 'cash';
+    } else if (paymentOption === 'use_bonus') {
+      const totalBalance = user.walletBalance + user.bonusBalance;
+      if (amountDue > 0 && totalBalance < amountDue) {
+        await session.abortTransaction();
+        res.status(400).json({
+          success: false,
+          message: `Số dư ví không đủ. Cần ${amountDue.toLocaleString('vi-VN')} VND, tổng dư ví + khuyến mãi: ${totalBalance.toLocaleString('vi-VN')} VND. Vui lòng chọn "Thanh toán tiền mặt" hoặc yêu cầu khách nạp thêm.`,
+        });
+        return;
+      }
       if (user.bonusBalance >= remainingToPay) {
         paidFromBonus = remainingToPay;
         remainingToPay = 0;
@@ -1194,7 +1339,15 @@ export const checkoutBooking = async (
         }
       }
     } else {
-      // use_main_only - Only use main wallet balance
+      // use_main_only
+      if (amountDue > 0 && user.walletBalance < amountDue) {
+        await session.abortTransaction();
+        res.status(400).json({
+          success: false,
+          message: `Số dư ví chính không đủ. Cần ${amountDue.toLocaleString('vi-VN')} VND, hiện có ${user.walletBalance.toLocaleString('vi-VN')} VND. Vui lòng chọn "Thanh toán tiền mặt" hoặc "Dùng tiền khuyến mãi trước".`,
+        });
+        return;
+      }
       if (user.walletBalance >= remainingToPay) {
         paidFromWallet = remainingToPay;
         remainingToPay = 0;
@@ -1217,9 +1370,13 @@ export const checkoutBooking = async (
     booking.finalPrice = finalPrice;
     booking.paidFromWallet = alreadyPaidFromWallet + paidFromWallet;
     booking.paidFromBonus = alreadyPaidFromBonus + paidFromBonus;
+    if (paymentOption === 'use_cash') {
+      booking.paymentMethod = 'cash';
+    }
     booking.paymentOption = paymentOption;
     booking.status = 'completed';
-    booking.paymentStatus = remainingToPay === 0 ? 'paid' : 'pending';
+    // Tiền mặt tại quầy hoặc đã trả hết bằng ví → trạng thái thanh toán toàn bộ
+    booking.paymentStatus = remainingToPay === 0 || paymentOption === 'use_cash' ? 'paid' : 'pending';
     booking.invoiceNumber = invoiceNumber;
     booking.checkoutNote = checkoutNote;
     await booking.save({ session });
@@ -1249,6 +1406,7 @@ export const checkoutBooking = async (
       .populate('room', 'name type price')
       .populate('services.service', 'name price icon');
 
+    const paidByCash = paymentOption === 'use_cash' ? amountDue : 0;
     res.status(200).json({
       success: true,
       data: {
@@ -1257,11 +1415,14 @@ export const checkoutBooking = async (
           totalAmount: finalPrice,
           paidFromWallet,
           paidFromBonus,
+          paidByCash,
           remainingToPay,
           invoiceNumber,
         },
       },
-      message: remainingToPay === 0 ? 'Checkout successful' : `Checkout completed. Remaining to pay: ${remainingToPay.toLocaleString()} VND`,
+      message: remainingToPay === 0
+        ? (paidByCash > 0 ? `Checkout thành công. Khách đã thanh toán ${paidByCash.toLocaleString('vi-VN')} VND tiền mặt.` : 'Checkout successful')
+        : `Checkout completed. Remaining to pay: ${remainingToPay.toLocaleString()} VND`,
     });
   } catch (error) {
     await session.abortTransaction();
@@ -1434,6 +1595,24 @@ export const getInvoice = async (
     }
 
     const nights = calculateNights(new Date(booking.checkIn), new Date(booking.checkOut));
+    const breakdown = (booking as any).roomPriceBreakdown as { date: Date; price: number; label?: string }[] | undefined;
+    const roomName = (booking.room as any).name;
+
+    const roomItems = breakdown && breakdown.length > 0
+      ? breakdown.map((b: { date: Date; price: number; label?: string }) => ({
+          description: `${roomName} - ${new Date(b.date).toLocaleDateString('vi-VN')}${b.label ? ` (${b.label})` : ''}`,
+          quantity: 1,
+          unitPrice: b.price,
+          total: b.price,
+        }))
+      : [
+          {
+            description: `${roomName} x ${nights} đêm`,
+            quantity: nights,
+            unitPrice: (booking.room as any).price,
+            total: booking.roomPrice,
+          },
+        ];
 
     const invoice = {
       invoiceNumber: booking.invoiceNumber || `INV-${booking._id.toString().slice(-8).toUpperCase()}`,
@@ -1450,13 +1629,9 @@ export const getInvoice = async (
       actualCheckIn: booking.actualCheckIn,
       actualCheckOut: booking.actualCheckOut,
       nights,
+      roomPriceBreakdown: breakdown || undefined,
       items: [
-        {
-          description: `${(booking.room as any).name} x ${nights} đêm`,
-          quantity: nights,
-          unitPrice: (booking.room as any).price,
-          total: booking.roomPrice,
-        },
+        ...roomItems,
         ...booking.services.map(s => ({
           description: (s.service as any).name,
           quantity: s.quantity,
@@ -1467,7 +1642,17 @@ export const getInvoice = async (
       subtotal: booking.estimatedPrice || booking.totalPrice,
       paidFromWallet: booking.paidFromWallet || 0,
       paidFromBonus: booking.paidFromBonus || 0,
-      totalPaid: (booking.paidFromWallet || 0) + (booking.paidFromBonus || 0),
+      depositAmount: booking.depositAmount || 0,
+      paidDepositAmount: booking.paidDepositAmount || 0,
+      totalPaid: (() => {
+        const sub = booking.estimatedPrice || booking.totalPrice;
+        if (booking.paymentStatus === 'paid' && booking.paymentMethod === 'cash') return sub;
+        const w = (booking.paidFromWallet || 0) + (booking.paidFromBonus || 0);
+        const d = booking.paidDepositAmount || 0;
+        const pw = booking.paidFromWallet || 0;
+        const total = w + Math.max(0, d - pw);
+        return Math.min(total, sub);
+      })(),
       finalAmount: booking.finalPrice || booking.totalPrice,
       status: booking.status,
       paymentStatus: booking.paymentStatus,

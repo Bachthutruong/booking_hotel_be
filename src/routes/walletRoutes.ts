@@ -8,6 +8,7 @@ import {
   createWithdrawalRequest,
   getMyWithdrawalRequests,
   getAllDepositRequests,
+  getDepositDetail,
   processDepositRequest,
   getAllWithdrawalRequests,
   processWithdrawalRequest,
@@ -38,6 +39,7 @@ router.get('/withdrawal/:id', protect, getWithdrawalDetail);
 
 // Admin routes
 router.get('/admin/deposits', protect, authorize('admin'), getAllDepositRequests);
+router.get('/admin/deposits/:id', protect, authorize('admin'), getDepositDetail);
 router.put('/admin/deposits/:id', protect, authorize('admin'), processDepositRequest);
 router.post('/admin/deposits/create', protect, authorize('admin'), adminCreateDeposit);
 router.get('/admin/withdrawals', protect, authorize('admin'), getAllWithdrawalRequests);

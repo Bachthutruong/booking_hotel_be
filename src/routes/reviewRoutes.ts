@@ -12,10 +12,10 @@ const router = Router();
 router.use(protect);
 
 router.put('/:id', updateReview);
-router.delete('/:id', deleteReview);
+router.delete('/:id', authorize('admin'), deleteReview);
 
-// Admin only
-router.get('/', authorize('admin'), getAllReviews);
-router.put('/:id/approve', authorize('admin'), approveReview);
+// Admin & staff
+router.get('/', authorize('admin', 'staff'), getAllReviews);
+router.put('/:id/approve', authorize('admin', 'staff'), approveReview);
 
 export default router;
